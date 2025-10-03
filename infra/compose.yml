@@ -165,6 +165,7 @@ services:
       - PG_HOST=db
       - PG_USER=${PG_USER:-postgres}
       - PG_PASSWORD=${PG_PASSWORD:-postgres}
+      - PG_DATABASE=polarsen_test
     depends_on:
       - db
     profiles:
@@ -194,7 +195,7 @@ services:
     depends_on:
       - db
       - s3
-      - pg-init-test
+#      - pg-init-test
     volumes:
       - ../polarsen:/app/polarsen
       - ../tests:/app/tests

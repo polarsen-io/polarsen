@@ -34,6 +34,23 @@ To start the services, simply run the following command:
 This will start the API, the Telegram bot, the PostgresSQL database, and the S3 (minio) service.
 
 
+### Running tests  
+
+You can run the full test suite with:
+
+```bash
+./bin/tests.sh
+```
+
+or for faster iteration, start the services first and then run the tests with:
+
+```bash
+# Run one time to setup the services
+./bin/tests.sh
+# Run each time you want to run the tests
+uv run pytest
+```  
+
 ### Build the Docker image
 
 To build the Docker image, you can use the following command:
