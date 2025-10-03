@@ -1,7 +1,6 @@
 # syntax=docker/dockerfile:1.4
 # check=error=true
-FROM andarius/python:3.13-alpine AS builder
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+FROM ghcr.io/astral-sh/uv:python3.13-alpine AS builder
 
 WORKDIR /app
 
