@@ -1,0 +1,213 @@
+volumes:
+  db-data:
+    name: polarsen_db
+  s3-data:
+    name: polarsen_s3
+  db-data-test:
+    name: polarsen_db_test
+
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:5432:5432"
+    command: [
+      '-c', 'fsync=off',
+      '-c', 'config_file=/etc/postgresql/postgresql.conf',
+      '-c', 'hba_file=/etc/postgresql/pg_hba.conf'
+    ]
+    environment:
+      - POSTGRES_PASSWORD=${PG_PASSWORD:-postgres}
+      - POSTGRES_USER=${PG_USER:-postgres}
+    volumes:
+      - ./static/postgres.conf:/etc/postgresql/postgresql.conf:ro
+      - ./static/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
+      - db-data:/var/lib/postgresql/data
+
+#  db-test:
+#    image: rg.fr-par.scw.cloud/polarsen/postgres:latest
+#    restart: unless-stopped
+#    ports:
+#      - "127.0.0.1:5432:5432"
+#    command: [
+#      '-c', 'fsync=off',
+#      '-c', 'config_file=/etc/postgresql/postgresql.conf',
+#      '-c', 'hba_file=/etc/postgresql/pg_hba.conf'
+#    ]
+#    environment:
+#      - POSTGRES_PASSWORD=${PG_PASSWORD:-postgres}
+#      - POSTGRES_USER=${PG_USER:-postgres}
+#    volumes:
+#      - ./static/init-pg.sh:/docker-entrypoint-initdb.d/init-pg.sh:ro
+#      - ./static/postgres.conf:/etc/postgresql/postgresql.conf:ro
+#      - ./static/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
+#      - ../sql:/sql_scripts:ro
+#      - db-data:/var/lib/postgresql/data
+
+
+  s3:
+    image: quay.io/minio/minio
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:9001:9001"
+      - "127.0.0.1:9000:9000"
+    command: [
+      'server', '/data', '--console-address', ':9001'
+    ]
+    environment:
+      - MINIO_ROOT_USER=${MINIO_ROOT_USER:-minioadmin}
+      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD:-minioadmin}
+    volumes:
+      - s3-data:/data
+
+  api:
+    develop:
+      watch:
+        - action: sync+restart
+          path: ../polarsen
+          target: /polarsen
+          ignore:
+            - ai
+            - bot
+            - benchmark
+            - tests
+        - action: rebuild
+          path: ../uv.lock
+    build:
+      context: ..
+      dockerfile: infra/api.Dockerfile
+      args:
+        PROJECT_MODE: "api"
+
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      - PYTHONUNBUFFERED=1
+      - S3_ACCESS_KEY_ID=${S3_ACCESS_KEY_ID:-minioadmin}
+      - S3_SECRET_ACCESS_KEY=${S3_SECRET_ACCESS_KEY:-minioadmin}
+      - S3_ENDPOINT=${S3_ENDPOINT:-http://s3:9000}
+      - CHAT_UPLOADS_S3_BUCKET=${CHAT_UPLOADS_S3_BUCKET:-chat-uploads}
+    command: [ "start", "-vv" ]
+    ports:
+      - "127.0.0.1:5050:5050"
+    depends_on:
+      - db
+#    profiles:
+#      - api
+
+  bot:
+    develop:
+      watch:
+        - action: sync+restart
+          path: ../polarsen
+          target: /polarsen
+          ignore:
+            - ai
+            - api
+            - benchmark
+            - tests
+        - action: rebuild
+          path: ../uv.lock
+
+    build:
+      context: ..
+      dockerfile: infra/bot.Dockerfile
+      args:
+        PROJECT_MODE: "bot"
+
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      PYTHONUNBUFFERED: 1
+    command: [ "start", "-vv" ]
+    depends_on:
+      - api
+#    profiles:
+#      - api
+
+  cli:
+    develop:
+      watch:
+        - action: rebuild
+          path: ../uv.lock
+        - action: sync
+          path: ../polarsen
+          target: /polarsen
+    build:
+      context: ..
+      dockerfile: infra/cli.Dockerfile
+      args:
+        PROJECT_MODE: "cli"
+    environment:
+      - S3_ACCESS_KEY_ID=${S3_ACCESS_KEY_ID:-minioadmin}
+      - S3_SECRET_ACCESS_KEY=${S3_SECRET_ACCESS_KEY:-minioadmin}
+      - S3_ENDPOINT=${S3_ENDPOINT:-http://s3:9000}
+    depends_on:
+      - db
+      - s3
+    profiles:
+      - cli
+
+  pg-init:
+    develop:
+      watch:
+        - action: rebuild
+          path: ../uv.lock
+        - action: sync
+          path: ../polarsen
+          target: /polarsen
+    build:
+      context: ..
+      dockerfile: infra/cli.Dockerfile
+      args:
+        PROJECT_MODE: "cli"
+    command: ['-v', 'db', 'setup']
+    environment:
+      - PG_HOST=db
+      - PG_USER=${PG_USER:-postgres}
+      - PG_PASSWORD=${PG_PASSWORD:-postgres}
+    depends_on:
+      - db
+
+  s3-init:
+    image: minio/mc
+    restart: no
+    environment:
+      - MINIO_USER=${MINIO_USER:-minioadmin}
+      - MINIO_PASSWORD=${MINIO_PASSWORD:-minioadmin}
+      - BUCKETS=chat-uploads,
+    volumes:
+      - ./static/init-s3.sh:/init-s3.sh:ro
+    entrypoint: [ "/init-s3.sh" ]
+    depends_on:
+      - s3
+
+  test:
+    build:
+      context: ..
+      dockerfile: infra/test.Dockerfile
+    develop:
+      watch:
+        - action: rebuild
+          path: ../uv.lock
+        - action: sync
+          path: ../polarsen
+          target: /polarsen
+    environment:
+      - PG_DATABASE=polarsen_test
+      - PG_HOST=db
+      - PG_USER=${PG_USER:-postgres}
+      - PG_PASSWORD=${PG_PASSWORD:-postgres}
+      - S3_ENDPOINT=http://s3:9000
+      - S3_ACCESS_KEY_ID=minioadmin
+      - S3_SECRET_ACCESS_KEY=minioadmin
+      - CHAT_UPLOADS_S3_BUCKET=uploads-test
+    depends_on:
+      - db
+      - s3
+    volumes:
+      - ../polarsen:/app/polarsen
+      - ../tests:/app/tests
+    profiles:
+      - test
