@@ -20,7 +20,6 @@ from .models import NewUser, User, AIModel, AskQuestion, EmbeddingResult, Status
 from .utils import APIException, get_user, ErrorCode
 
 
-
 VERSION = "0.1.0"
 
 

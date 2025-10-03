@@ -61,7 +61,7 @@ async def fetch_chat_completion(
         "messages": messages,
     }
 
-    if model in ('gpt-5-mini', 'gpt-5-nano'):
+    if model in ("gpt-5-mini", "gpt-5-nano"):
         temperature = 1
     if temperature is not None:
         payload["temperature"] = temperature

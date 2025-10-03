@@ -6,7 +6,7 @@ from minio import Minio
 import asyncio
 import asyncpg
 
-os.environ["PG_DATABASE"] = os.getenv("PG_DATABASE", "polarsen_test")
+os.environ["PG_DATABASE"] = "polarsen_test"
 os.environ["PG_HOST"] = os.getenv("PG_HOST", "localhost")
 os.environ["PG_USER"] = os.getenv("PG_USER", "postgres")
 os.environ["PG_PASSWORD"] = os.getenv("PG_PASSWORD", "password")

@@ -10,7 +10,6 @@ from typing import TypedDict, Iterable, Unpack, NotRequired, Literal, cast, TYPE
 
 if TYPE_CHECKING:
     from mistralai import models as mistral_models
-    from google.genai import types as genai_types
     from openai.types import chat as openai_chat_types
     from niquests import AsyncSession
 
@@ -62,7 +61,7 @@ _MESSAGES_BY_DATE = """
 
 
 async def get_messages_by_dates(
-        conn: asyncpg.Connection, chat_id: int, dates: list[dt.date], force: bool = False
+    conn: asyncpg.Connection, chat_id: int, dates: list[dt.date], force: bool = False
 ) -> tuple[Iterable[MessageLite], int]:
     """
     Retrieve messages from the database for the given dates.
@@ -109,15 +108,15 @@ Expected output:
 
 
 async def _fetch_mistral_segmentation(
-        session: AsyncSession,
-        messages: list[MessageLite],
-        users: dict,
-        lang: str,
-        model_name: str | None = None,
-        agent_id: str | None = None,
-        response_format: mistral_models.ResponseFormats = "text",
-        temperature: float = BASE_TEMP,
-        random_seed: int | None = 2604,
+    session: AsyncSession,
+    messages: list[MessageLite],
+    users: dict,
+    lang: str,
+    model_name: str | None = None,
+    agent_id: str | None = None,
+    response_format: mistral_models.ResponseFormats = "text",
+    temperature: float = BASE_TEMP,
+    random_seed: int | None = 2604,
 ):
     """
     Fetch conversation segmentation from the Mistral model.
@@ -126,7 +125,8 @@ async def _fetch_mistral_segmentation(
         ResponseFormatTypedDict,
         SystemMessageTypedDict,
         UserMessageTypedDict,
-        ChatCompletionRequestTypedDict)
+        ChatCompletionRequestTypedDict,
+    )
 
     _messages = "[MESSAGES]" + json.dumps(messages) + "[/MESSAGES]"
     _users = "[USERS]" + json.dumps(users) + "[/USERS]"
@@ -134,11 +134,9 @@ async def _fetch_mistral_segmentation(
     _response_format = ResponseFormatTypedDict(type=response_format)
     if model_name is not None:
         req_messages = [
-            SystemMessageTypedDict(content=_PROMPT.format(lang=lang,
-                                                          nb_min_messages=NB_MIN_MESSAGES),
-                                   role='system'),
-            UserMessageTypedDict(content=_messages, role='user'),
-            UserMessageTypedDict(content=_users, role='user'),
+            SystemMessageTypedDict(content=_PROMPT.format(lang=lang, nb_min_messages=NB_MIN_MESSAGES), role="system"),
+            UserMessageTypedDict(content=_messages, role="user"),
+            UserMessageTypedDict(content=_users, role="user"),
         ]
         request = ChatCompletionRequestTypedDict(
             messages=req_messages,
@@ -164,14 +162,14 @@ async def _fetch_mistral_segmentation(
 
 
 async def _fetch_gemini_segmentation(
-        session: AsyncSession,
-        messages: list[MessageLite],
-        users: dict,
-        lang: str,
-        model_name: str,
-        temperature: float | None = None,
-        seed: int | None = 2604,
-        disable_thinking: bool = True,
+    session: AsyncSession,
+    messages: list[MessageLite],
+    users: dict,
+    lang: str,
+    model_name: str,
+    temperature: float | None = None,
+    seed: int | None = 2604,
+    disable_thinking: bool = True,
 ):
     """
     Fetch conversation segmentation from the Mistral model.
@@ -201,14 +199,14 @@ async def _fetch_gemini_segmentation(
 
 
 async def _fetch_openai_segmentation(
-        session: AsyncSession,
-        messages: list[MessageLite],
-        users: dict,
-        lang: str,
-        model_name: str,
-        temperature: float = BASE_TEMP,
-        seed: int | None = 2604,
-        source: Literal["openai", "grok", "self_hosted"] = "openai",
+    session: AsyncSession,
+    messages: list[MessageLite],
+    users: dict,
+    lang: str,
+    model_name: str,
+    temperature: float = BASE_TEMP,
+    seed: int | None = 2604,
+    source: Literal["openai", "grok", "self_hosted"] = "openai",
 ):
     """
     Fetch conversation segmentation from the OpenAI model.
@@ -242,9 +240,9 @@ async def _fetch_openai_segmentation(
 
 # Specific retry decorator for your conversation segmentation function
 def retry_conversation_segmentation(
-        max_attempts: int = 3,
-        delay: float = 2.0,
-        backoff_factor: float = 1.5,
+    max_attempts: int = 3,
+    delay: float = 2.0,
+    backoff_factor: float = 1.5,
 ):
     """
     Specialized retry decorator for conversation segmentation function.
@@ -281,19 +279,19 @@ _ConversationSegResultType = TypeAdapter(ConversationSegResult)
 
 @retry_conversation_segmentation(max_attempts=3, delay=2.0)
 async def apply_conversation_segmentation(
-        session: AsyncSession,
-        messages: Iterable[MessageLite],
-        source: AISource,
-        lang: str,
-        model_name: str | None = None,
-        agent_name: str | None = None,
-        conn: asyncpg.Connection | None = None,
-        temperature: float = BASE_TEMP,
-        seed: int | None = 2604,
-        run_id: uuid.UUID | None = None,
-        meta: dict | None = None,
-        raise_invalid_ids: bool = True,
-        disable_thinking: bool = True,
+    session: AsyncSession,
+    messages: Iterable[MessageLite],
+    source: AISource,
+    lang: str,
+    model_name: str | None = None,
+    agent_name: str | None = None,
+    conn: asyncpg.Connection | None = None,
+    temperature: float = BASE_TEMP,
+    seed: int | None = 2604,
+    run_id: uuid.UUID | None = None,
+    meta: dict | None = None,
+    raise_invalid_ids: bool = True,
+    disable_thinking: bool = True,
 ) -> tuple[list[ConversationSegResult], set[int], UsageToken, set[int]]:
     """
     Apply conversation segmentation to the messages.
@@ -405,13 +403,13 @@ async def _get_processed_days(conn: asyncpg.Connection, chat_id: int) -> set[dt.
 
 
 async def run_group_messages(
-        conn: asyncpg.Connection,
-        session: AsyncSession,
-        chat_id: int,
-        show_progress: bool = False,
-        force: bool = False,
-        lang: str = "french",
-        **params: Unpack[ParamsV2],
+    conn: asyncpg.Connection,
+    session: AsyncSession,
+    chat_id: int,
+    show_progress: bool = False,
+    force: bool = False,
+    lang: str = "french",
+    **params: Unpack[ParamsV2],
 ):
     """
     Group messages into discussions.
@@ -499,8 +497,9 @@ async def run_group_messages(
                 run_id=run_id,
             )
             _group_id = await _group.upsert(conn)
-            _group_messages = (MessageGroupChat(chat_id=chat_id, group_id=_group_id, msg_id=msg_id) for msg_id in
-                               discussion["ids"])
+            _group_messages = (
+                MessageGroupChat(chat_id=chat_id, group_id=_group_id, msg_id=msg_id) for msg_id in discussion["ids"]
+            )
             await MessageGroupChat.bulk_save(conn, _group_messages)
             if len(discussion["ids"]) < NB_MIN_MESSAGES:
                 logs.warning(f"Discussion {discussion['title']} has less than {NB_MIN_MESSAGES} messages")

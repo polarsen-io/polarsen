@@ -4,12 +4,13 @@ from .data import User
 
 __all__ = ("handle_errors",)
 
+
 def handle_errors(func):
     @functools.wraps(func)
     async def wrapper(*args, **kwargs):
         try:
             return await func(*args, **kwargs)
-        except Exception as e:
+        except Exception:
             if not args:
                 raise ValueError("Expected at least one argument for the decorated function")
             _update_arg = args[0]
@@ -21,6 +22,6 @@ def handle_errors(func):
             user = await User.load_user(_update_arg.effective_user)
             if not _update_arg.message:
                 return
-            await _update_arg.message.reply_text(user.t('error_occurred'))
+            await _update_arg.message.reply_text(user.t("error_occurred"))
 
     return wrapper

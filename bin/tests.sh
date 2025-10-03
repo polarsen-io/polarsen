@@ -24,8 +24,9 @@ fi
 #}
 
 # Start the infrastructure services if not running
-./bin/start.sh up -d db s3
-./bin/setup-pg.sh --drop --quiet
+./bin/start.sh up -d db s3 pg-init-test
+#./bin/setup-pg.sh --drop --quiet
+#./bin/start.sh --profile test
 
 if [ "$_no_run" = false ]; then
   ./bin/start.sh --profile test run --build --rm test uv run pytest "${@}"

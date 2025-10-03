@@ -47,7 +47,7 @@ async def fetch_completion(
     data = response.json()
     content = data["choices"][0]["message"]["content"]
     if isinstance(content, list):
-        content = [x for x in content if x['type'] == 'text'][0]['text']
+        content = [x for x in content if x["type"] == "text"][0]["text"]
         # thinking_content = [x for x in content if x['type'] == 'thinking'][0]['thinking']
     usage_token: UsageToken = {
         "total": data["usage"]["total_tokens"],

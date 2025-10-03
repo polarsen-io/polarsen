@@ -7,7 +7,7 @@ WORKDIR /app
 ENV UV_SYSTEM_PYTHON=1
 ENV UV_PROJECT_ENVIRONMENT=/usr/local
 
-ARG UV_PARAMS="--only-group llms --only-group telegram --only-group default"
+ARG UV_PARAMS="--only-group telegram --only-group default"
 
 # Install dependencies to system Python
 RUN --mount=type=cache,target=/root/.cache/uv \

@@ -14,7 +14,7 @@ MISTRAL_MODELS = {
     "codestral-latest",
     "mistral-ocr-latest",
     "magistral-small-latest",
-    "mistral-small-latest"
+    "mistral-small-latest",
 }
 
 MISTRAL_AGENTS = {"discussion": "ag:ad832830:20250516:untitled-agent:38dc4ce3"}

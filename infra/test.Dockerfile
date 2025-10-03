@@ -1,7 +1,6 @@
 # syntax=docker/dockerfile:1.4
 # check=error=true
-FROM andarius/python:3.12-alpine as builder
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+FROM ghcr.io/astral-sh/uv:python3.13-alpine as builder
 
 # Install system packages as root
 RUN apk add --no-cache \
@@ -11,7 +10,7 @@ RUN apk add --no-cache \
     linux-headers \
     libpq libpq-dev
 
-ARG UV_PARAMS="--only-group default --only-group common --only-group dev --only-group api --only-group telegram"
+ARG UV_PARAMS="--only-group default --only-group llms --only-group dev --only-group api --only-group telegram"
 
 WORKDIR /app
 

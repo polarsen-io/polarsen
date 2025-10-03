@@ -28,6 +28,7 @@ dev = [
     "minio>=7.2.16",
     "faker>=37.6.0",
     "tracktolib>=0.57.0",
+    "pre-commit>=4.3.0",
 ]
 
 llms = [

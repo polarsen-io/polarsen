@@ -180,6 +180,7 @@ async def handle_file_upload(update: Update, _: ContextTypes.DEFAULT_TYPE) -> No
         await update.message.reply_text(user.t("chat_uploaded").format(chat_name=document.file_name))
         return
 
+
 @handle_errors
 async def stop_handler(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
     """
@@ -191,6 +192,7 @@ async def stop_handler(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
         return
     user = await User.load_user(update.effective_user)
     await update.message.reply_text(user.t("stop_message"))
+
 
 @handle_errors
 async def help_handler(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
@@ -204,6 +206,7 @@ async def help_handler(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
     user = await User.load_user(update.effective_user)
     await update.message.reply_text(user.t("help_message"))
 
+
 @handle_errors
 async def select_chat_handler(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle the /select_chats command."""
@@ -215,6 +218,7 @@ async def select_chat_handler(update: Update, _: ContextTypes.DEFAULT_TYPE) -> N
     resp, keyboard = await _select_chat(user)
     await update.message.reply_text(resp, reply_markup=keyboard)
 
+
 @handle_errors
 async def list_chats_handler(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle the /list_chats command."""
@@ -224,6 +228,7 @@ async def list_chats_handler(update: Update, _: ContextTypes.DEFAULT_TYPE) -> No
         return
     user = await User.load_user(update.effective_user)
     await update.message.reply_html(fmt_chats(user.chats, user.t))
+
 
 @handle_errors
 async def select_ai_handler(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
@@ -235,6 +240,7 @@ async def select_ai_handler(update: Update, _: ContextTypes.DEFAULT_TYPE) -> Non
     user = await User.load_user(update.effective_user)
     resp, keyboard = await _select_ai(user)
     await update.message.reply_text(resp, reply_markup=keyboard)
+
 
 @handle_errors
 async def upload_chat_handler(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:

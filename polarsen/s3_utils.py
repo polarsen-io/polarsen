@@ -59,7 +59,7 @@ class UploadPart(TypedDict):
 
 @asynccontextmanager
 async def s3_multipart_upload(
-        s3: botocore.client.BaseClient, client: niquests.AsyncSession, bucket: str, key: str, *, expires_in: int = 3600
+    s3: botocore.client.BaseClient, client: niquests.AsyncSession, bucket: str, key: str, *, expires_in: int = 3600
 ):
     """Async context manager for S3 multipart upload with automatic cleanup."""
     upload_id: str | None = None
@@ -136,21 +136,21 @@ async def s3_multipart_upload(
 
 
 async def s3_file_upload(
-        s3: botocore.client.BaseClient,
-        client: niquests.AsyncSession,
-        bucket: str,
-        key: str,
-        data: AsyncIterator[bytes],
-        # 5MB minimum for S3 parts
-        min_part_size: int = 5 * 1024 * 1024,
-        on_chunk_received: Callable[[bytes], None] | None = None,
-        content_length: int | None = None,
+    s3: botocore.client.BaseClient,
+    client: niquests.AsyncSession,
+    bucket: str,
+    key: str,
+    data: AsyncIterator[bytes],
+    # 5MB minimum for S3 parts
+    min_part_size: int = 5 * 1024 * 1024,
+    on_chunk_received: Callable[[bytes], None] | None = None,
+    content_length: int | None = None,
 ) -> None:
     """
     Upload a file to S3 using multipart upload from an async byte stream.
     """
     if content_length is not None and content_length < min_part_size:
-        logs.debug('Content length is less than min_part_size, using single PUT operation')
+        logs.debug("Content length is less than min_part_size, using single PUT operation")
         # Consume AsyncIterator
         _data = b""
         async for chunk in data:
@@ -172,7 +172,7 @@ async def s3_file_upload(
 
 
 async def s3_delete_object(
-        s3: botocore.client.BaseClient, client: niquests.AsyncSession, bucket: str, key: str
+    s3: botocore.client.BaseClient, client: niquests.AsyncSession, bucket: str, key: str
 ) -> niquests.Response:
     """Delete an object from S3."""
     url = s3.generate_presigned_url(
@@ -188,7 +188,7 @@ async def s3_delete_object(
 
 
 async def s3_put_object(
-        s3: botocore.client.BaseClient, client: niquests.AsyncSession, bucket: str, key: str, data: bytes
+    s3: botocore.client.BaseClient, client: niquests.AsyncSession, bucket: str, key: str, data: bytes
 ) -> niquests.Response:
     """Upload an object to S3."""
     url = s3.generate_presigned_url(
@@ -208,7 +208,7 @@ async def s3_put_object(
 
 
 async def s3_get_object(
-        s3: botocore.client.BaseClient, client: niquests.AsyncSession, bucket: str, key: str
+    s3: botocore.client.BaseClient, client: niquests.AsyncSession, bucket: str, key: str
 ) -> bytes | None:
     """Download an object from S3."""
     url = s3.generate_presigned_url(
