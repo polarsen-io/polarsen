@@ -1183,6 +1183,7 @@ llms = [
     { name = "requests" },
 ]
 telegram = [
+    { name = "pydantic" },
     { name = "python-telegram-bot" },
     { name = "sentry-sdk" },
     { name = "watchfiles" },
@@ -1230,6 +1231,7 @@ llms = [
     { name = "requests", specifier = ">=2.32.0" },
 ]
 telegram = [
+    { name = "pydantic", specifier = ">=2.11.10" },
     { name = "python-telegram-bot", specifier = ">=22.1" },
     { name = "sentry-sdk", specifier = ">=2.32.0" },
     { name = "watchfiles", specifier = ">=1.0.5" },

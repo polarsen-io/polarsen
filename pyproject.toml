@@ -51,6 +51,7 @@ telegram = [
     "python-telegram-bot>=22.1",
     "watchfiles>=1.0.5",
     "sentry-sdk>=2.32.0",
+    "pydantic>=2.11.10",
 ]
 
 bump = [
