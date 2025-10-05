@@ -14,7 +14,7 @@ default = [
     "piou>=0.20.0",
     "niquests>=3.14.1",
     "tracktolib>=0.55.0",
-    "urllib3-future>=2.13.909",
+    "urllib3-future>=2.14.901",
 ]
 
 dev = [
@@ -43,7 +43,7 @@ llms = [
 api = [
     "fastapi[standard]>=0.115.12",
     "bcrypt>=4.3.0",
-    "botocore>=1.40.40",
+    "botocore>=1.40.45",
     "sentry-sdk[fastapi]>=2.32.0",
 ]
 

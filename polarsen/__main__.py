@@ -33,7 +33,7 @@ if _mode != "api":
     cli.set_options_processor(on_process)
 
 if _mode == "cli":
-    logs.debug("Running in default mode")
+    logs.debug("Running in CLI mode")
     from .cli import chat_group, ai_group, db_group
 
     cli.add_command_group(ai_group)
@@ -44,12 +44,13 @@ if _mode == "cli":
 if _mode == "api":
     from polarsen.api import api_group
 
-    logs.debug("Running in ingest mode")
+    logs.debug("Running in API mode")
     cli.add_command_group(api_group)
 
 if _mode == "bot":
     from polarsen.bot import bot_group
 
+    logs.debug("Running in BOT mode")
     cli.add_command_group(bot_group)
 
 if __name__ == "__main__":

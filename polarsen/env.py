@@ -10,7 +10,7 @@ PG_USER = os.getenv("PG_USER", "postgres")
 PG_PASSWORD = os.getenv("PG_PASSWORD", "postgres")
 PG_DATABASE = os.getenv("PG_DATABASE", "polarsen")
 
-SQL_DIR = _cur_dir.parent / "sql"
+SQL_DIR = Path(os.getenv("SQL_DIR", _cur_dir.parent / "sql"))
 
 # Mistral
 MISTRAL_API_KEY = os.getenv("MISTRAL_API_KEY")
