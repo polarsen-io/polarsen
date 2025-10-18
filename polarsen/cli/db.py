@@ -18,7 +18,7 @@ CHAT_TYPES = [
 
 
 @db_group.command("setup", help="Generate embeddings for messages in discussions")
-async def run_gen_embeddings(
+async def _setup_db(
     pg_host: str = PgHost,
     pg_port: int = PgPort,
     pg_user: str = PgUser,

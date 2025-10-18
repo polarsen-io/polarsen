@@ -1,4 +1,5 @@
 from dataclasses import dataclass, field, asdict
+import datetime as dt
 
 __all__ = ("TableID",)
 
@@ -6,6 +7,7 @@ __all__ = ("TableID",)
 @dataclass
 class TableID:
     _id: int | None = field(default=None, init=False)
+    _created_at: dt.datetime | None = field(default=None, init=False)
 
     @property
     def data(self):
@@ -20,3 +22,9 @@ class TableID:
         if self._id is None:
             raise ValueError("Data not been saved yet")
         return self._id
+
+    @property
+    def created_at(self):
+        if self._created_at is None:
+            raise ValueError("Data not been saved yet")
+        return self._created_at

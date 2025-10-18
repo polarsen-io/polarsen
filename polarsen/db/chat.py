@@ -320,11 +320,12 @@ class ChatUpload(TableID):
         }
 
     async def save(self, conn: asyncpg.Connection) -> int:
-        upload_id = await insert_returning(conn, "general.chat_uploads", self.data, returning="id")
-        if upload_id is None:
+        _data = await insert_returning(conn, "general.chat_uploads", self.data, returning=["id", "created_at"])
+        if _data is None:
             raise ValueError(f"Failed to save chat upload {self.filename!r} for user {self.user_id}")
-        self._id = upload_id
-        return upload_id
+        self._id = _data["id"]
+        self._created_at = _data["created_at"]
+        return _data["id"]
 
     @staticmethod
     async def mark_processed(conn: asyncpg.Connection, chat_id: int, upload_id: int) -> None:

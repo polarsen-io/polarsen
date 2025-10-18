@@ -4,7 +4,7 @@ from http import HTTPStatus
 import pytest
 from tracktolib.pg_sync import insert_many, fetch_one
 
-from tests.data.db import gen_user
+from tests.data.db import gen_user, gen_chat_upload, load_chat_types
 from .conftest import USERS
 from ..utils import generate_large_file
 
@@ -72,9 +72,25 @@ class TestUsers:
         return gen_user(telegram_id=self._default_user["telegram_id"])
 
     @pytest.fixture(scope="function")
+    def telegram_uploads(self, telegram_user, engine):
+        chat_types = load_chat_types(engine, as_dict=True)
+        return [
+            gen_chat_upload(
+                user_id=telegram_user["id"],
+                chat_type_id=chat_types["telegram"]["id"],
+            )
+        ]
+
+    @pytest.fixture(scope="function")
     def add_user(self, engine, telegram_user):
         with engine.cursor() as cur:
             insert_many(cur, "general.users", [telegram_user])
+        engine.commit()
+
+    @pytest.fixture(scope="function")
+    def add_uploads(self, engine, telegram_uploads):
+        with engine.cursor() as cur:
+            insert_many(cur, "general.chat_uploads", telegram_uploads)
         engine.commit()
 
     @pytest.mark.parametrize(
@@ -125,4 +141,30 @@ class TestUsers:
             "api_keys": telegram_user["api_keys"],
             "meta": telegram_user["meta"],
             "chats": [],
+            "uploads": [],
+        }
+
+    @pytest.mark.usefixtures("add_user", "add_uploads")
+    def test_get_users(self, client, telegram_user, telegram_uploads):
+        resp = client.post("/users", json={"telegram_id": telegram_user["telegram_id"]})
+        assert resp.status_code == HTTPStatus.OK, resp.text
+
+        resp_data = resp.json()
+        for _upload in resp_data["uploads"]:
+            assert _upload.pop("created_at") is not None
+        assert resp_data == {
+            "id": telegram_user["id"],
+            "first_name": telegram_user["first_name"],
+            "last_name": telegram_user["last_name"],
+            "api_keys": telegram_user["api_keys"],
+            "meta": telegram_user["meta"],
+            "chats": [],
+            "uploads": [
+                {
+                    "chat_type": "Telegram",
+                    "file_id": telegram_uploads[0]["id"],
+                    "filename": telegram_uploads[0]["filename"],
+                    "file_path": telegram_uploads[0]["file_path"],
+                }
+            ],
         }

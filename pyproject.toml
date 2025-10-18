@@ -3,20 +3,14 @@ name = "polarsen"
 version = "0.1.0"
 description = ""
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.13"
 authors = [{ name = "Julien Brayere", email = "julien.brayere@polarsen.io" }]
+license-files = ["LICENSE.md"]
+license = "FSL-1.1-ALv2"
 
 #default-groups = "all"
 
 [dependency-groups]
-default = [
-    "asyncpg>=0.30.0",
-    "piou>=0.20.0",
-    "niquests>=3.14.1",
-    "tracktolib>=0.55.0",
-    "urllib3-future>=2.14.901",
-]
-
 dev = [
     "pyright>=1.1.398",
     "pytest>=8.3.5",
@@ -29,7 +23,22 @@ dev = [
     "faker>=37.6.0",
     "tracktolib>=0.57.0",
     "pre-commit>=4.3.0",
+    {include-group = "default"},
+    {include-group = "llms"},
+    {include-group = "api"},
+    {include-group = "telegram"},
+    {include-group = "bump"},
+    {include-group = "cli"}
 ]
+
+default = [
+    "asyncpg>=0.30.0",
+    "piou>=0.20.0",
+    "niquests>=3.15.2",
+    "tracktolib>=0.55.0",
+    "urllib3-future>=2.14.902",
+]
+
 
 llms = [
     "google-genai>=1.29.0",
@@ -59,7 +68,7 @@ bump = [
 ]
 
 cli = [
-    "botocore>=1.40.40",
+    "botocore>=1.40.45",
     "sentry-sdk>=2.32.0",
 ]
 

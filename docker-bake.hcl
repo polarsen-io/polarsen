@@ -16,7 +16,10 @@ variable "VERSION" {
 }
 
 
+target "docker-metadata-action" {}
+
 target "_common" {
+  inherits = ["docker-metadata-action"]
   labels = {
     "org.opencontainers.image.source" = "https://github.com/polarsen/polarsen"
     "org.opencontainers.image.author" = "julien.brayere@polarsen.com"

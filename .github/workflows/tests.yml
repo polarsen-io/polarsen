@@ -1,0 +1,32 @@
+name: Run Tests
+on:
+  push:
+  pull_request:
+  workflow_call:
+
+
+jobs:
+  run-tests:
+
+    runs-on: ubuntu-latest
+
+    steps:
+        - name: Checkout
+          uses: actions/checkout@v5
+
+        - name: Run ruff
+          uses: astral-sh/ruff-action@57714a7c8a2e59f32539362ba31877a1957dded1 # v3.5.1
+          with:
+            version: ">=0.12.1"
+
+        - name: Install the latest version of uv
+          uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
+          with:
+            version: "latest"
+
+        - name: Run Pyright
+          run: uv run pyright
+
+        - name: Run tests
+          run: |
+            ./bin/run-tests.sh

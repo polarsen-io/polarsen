@@ -39,7 +39,6 @@ class GroupMethod(TableID):
     name: str
     internal_code: str
     meta: dict | None = None
-    created_at: dt.datetime | None = None
 
     @staticmethod
     async def bulk_save(conn: asyncpg.Connection, methods: list["GroupMethod"]):
@@ -86,7 +85,6 @@ class MessageGroup(TableID):
     internal_code: str
     summary: str | None = None
     title: str | None = None
-    created_at: dt.datetime | None = None
     meta: dict | None = None
     run_id: uuid.UUID | None = None
 
@@ -119,7 +117,6 @@ class MessageGroupChat(TableID):
     chat_id: int
     group_id: int
     msg_id: int
-    created_at: dt.datetime | None = None
 
     @staticmethod
     async def bulk_save(conn: asyncpg.Connection, messages: Iterable["MessageGroupChat"]):
@@ -141,12 +138,11 @@ class MessageGroupChat(TableID):
 class MistralGroupEmbeddings(TableID):
     group_id: int
     embedding: list[float]
-    created_at: dt.datetime | None = None
     last_processed_at: dt.datetime | None = None
 
     def __post_init__(self):
         _now = dt.datetime.now(dt.timezone.utc)
-        self.created_at = _now
+        self._created_at = _now
         self.last_processed_at = _now
 
     async def save(self, conn: asyncpg.Connection):
@@ -173,7 +169,6 @@ class Requests(TableID):
     input_tokens: int = 0
     output_tokens: int = 0
     cached_tokens: int = 0
-    created_at: dt.datetime | None = None
     payload: dict | None = None
     meta: dict | None = None
     run_id: uuid.UUID | None = None

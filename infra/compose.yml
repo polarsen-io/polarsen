@@ -96,7 +96,8 @@ services:
     restart: unless-stopped
     env_file: .env
     environment:
-      PYTHONUNBUFFERED: 1
+      - PYTHONUNBUFFERED=1
+      - API_URL=${API_URL:-http://api:5050}
     command: [ "start", "-vv" ]
     depends_on:
       - api

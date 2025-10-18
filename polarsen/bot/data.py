@@ -38,6 +38,7 @@ class User:
     id: int | None = None  # This will be set after loading the user from the API
     api_keys: dict[AISource, str] = field(default_factory=dict)
     chats: list[models.Chat] = field(default_factory=list)
+    # uploads: list[models.ChatUpload] = field(default_factory=list)
     selected_chat_id: int | None = None
     selected_model: str | None = None
     state: UserState = UserState.NORMAL
@@ -45,6 +46,7 @@ class User:
 
     @property
     def selected_chat_name(self) -> str | None:
+        """Get the name of the selected chat, or empty if no chat is selected."""
         if self.selected_chat_id is None:
             return None
         for chat in self.chats:
@@ -54,12 +56,14 @@ class User:
 
     @property
     def selected_model_source(self) -> AISource:
+        """Get the source (mistral, openai, ...) of the selected model, or raise if no model is selected."""
         if self.selected_model is None:
             raise ValueError("No model selected")
         return get_source_from_model(self.selected_model)
 
     @property
     def selected_model_api_key(self) -> str | None:
+        """Get the API key for the selected model, or None if no model is selected or no API key is set."""
         return self.api_keys.get(self.selected_model_source)
 
     @property

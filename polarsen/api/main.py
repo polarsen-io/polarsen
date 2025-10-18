@@ -2,9 +2,9 @@ import os
 from contextlib import asynccontextmanager
 from typing import Any
 import asyncpg
+from collections.abc import Mapping
 
-from fastapi import FastAPI, Depends, Query
-from fastapi import Request
+from fastapi import FastAPI, Depends, Query, Request
 from fastapi.responses import JSONResponse
 from starlette import status
 
@@ -21,6 +21,10 @@ from .utils import APIException, get_user, ErrorCode
 
 
 VERSION = "0.1.0"
+
+# Not sure where to put this, feel free to move it.
+# See: https://github.com/pydantic/pydantic/issues/9406#issuecomment-2104224328
+Mapping.register(asyncpg.Record)  # type: ignore[method-assign]
 
 
 @asynccontextmanager
@@ -161,20 +165,21 @@ async def _upload_chat(
 
     file_path = f"{user_id}/{filename}"
 
-    chat_type_id = await conn.fetchval(
+    _chat_type = await conn.fetchrow(
         """
-                                       SELECT id
+                                       SELECT id, name
                                        FROM general.chat_types
                                        WHERE internal_code = $1
                                        """,
         chat_type,
     )
-    if chat_type_id is None:
+    if _chat_type is None:
         raise APIException(
             status_code=status.HTTP_400_BAD_REQUEST,
             reason=f"Invalid chat type {chat_type!r}",
             error_code=ErrorCode.invalid_token,
         )
+    chat_type_id = _chat_type["id"]
     bucket = env.CHAT_UPLOADS_S3_BUCKET
     if not bucket:
         raise ValueError("CHAT_UPLOADS_S3_BUCKET must be set")
@@ -218,7 +223,13 @@ async def _upload_chat(
             raise e
     logs.info(f"Uploaded file {filename!r} for user {user_id} to {file_path!r}")
 
-    return ChatUpload(file_id=file_id, file_path=file_path)
+    return ChatUpload(
+        file_id=file_id,
+        filename=filename,
+        chat_type=_chat_type["name"],
+        created_at=chat_upload.created_at,
+        file_path=file_path,
+    )
 
 
 @app.patch("/questions/{question_id}", tags=[CHAT_TAG])

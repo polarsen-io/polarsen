@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import datetime as dt
 from typing import TypedDict, Literal
 
@@ -31,6 +33,7 @@ class User(BaseModel):
     chats: list[Chat]
     api_keys: dict[AISource, str] | None
     meta: dict | None
+    uploads: list[ChatUpload]
 
 
 class EmbeddingResult(TypedDict):
@@ -58,7 +61,10 @@ class Status(BaseModel):
 
 class ChatUpload(BaseModel):
     file_id: int
+    filename: str
     file_path: str
+    created_at: dt.datetime
+    chat_type: str
 
 
 ChatType = Literal["telegram"]

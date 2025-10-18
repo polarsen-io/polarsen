@@ -8,7 +8,7 @@ set -e
 cd "$(dirname "$0")/.." || exit 1
 
 set -a
-source .env
+source infra/.env
 set +a
 
 uv run -m polarsen "${@}"

@@ -5,6 +5,7 @@
 # EXAMPLES:
 #   - ./bin/tests.sh
 #   - ./bin/tests.sh --no-run
+
 set -eou pipefail
 
 cd "$(dirname "$0")/.." || exit 1

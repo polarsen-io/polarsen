@@ -5,7 +5,7 @@ from typing import Any
 import asyncpg
 from pydantic import TypeAdapter
 
-from .models import Chat, User
+from .models import Chat, User, ChatUpload
 
 __all__ = (
     "coerce_str_to_int",
@@ -75,6 +75,7 @@ class APIException(Exception):
 
 _ChatTypeAdapter = TypeAdapter(Chat)
 _UserTypeAdapter = TypeAdapter(User)
+_UploadTypeAdapter = TypeAdapter(ChatUpload)
 
 _GET_USER_CHATS_QUERY = textwrap.dedent(
     """
@@ -94,8 +95,31 @@ _GET_USER_CHATS_QUERY = textwrap.dedent(
 
 
 async def get_user_chats(conn: asyncpg.Connection, user_id: int) -> list[Chat]:
+    """Get the list of chats for a user based on its ID."""
     chats = await conn.fetch(_GET_USER_CHATS_QUERY, user_id)
-    return [_ChatTypeAdapter.validate_python(dict(chat)) for chat in chats]
+    return [_ChatTypeAdapter.validate_python(chat) for chat in chats]
+
+
+async def get_user_uploads(conn: asyncpg.Connection, user_id: int) -> list[ChatUpload]:
+    """Get the list of uploads for a user based on its ID."""
+    uploads = await conn.fetch(
+        """
+        SELECT cu.id as file_id, 
+               cu.filename,
+               cu.file_path,
+               cu.created_at,
+               ct.name as chat_type
+        FROM general.chat_uploads cu
+        left join general.chat_types ct on cu.chat_type_id = ct.id
+        WHERE user_id = $1
+        ORDER BY created_at desc
+        """,
+        user_id,
+    )
+    import pprint
+
+    pprint.pprint(uploads)
+    return [_UploadTypeAdapter.validate_python(upload) for upload in uploads]
 
 
 _GET_USER_QUERY = """
@@ -124,9 +148,11 @@ async def get_user(conn: asyncpg.Connection, user_id: int | None = None, telegra
         return None
 
     chats = await get_user_chats(conn, user_id=user["id"])
+    uploads = await get_user_uploads(conn, user_id=user["id"])
     return _UserTypeAdapter.validate_python(
         {
             **dict(user),
             "chats": chats,
+            "uploads": uploads,
         }
     )

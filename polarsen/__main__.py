@@ -21,7 +21,7 @@ if sentry_sdk is not None and os.getenv("SENTRY_DSN"):
 
 cli = Cli("Polarsen utility commands")
 
-_mode = os.getenv("PROJECT_MODE", "cli").lower()
+_mode = os.getenv("PROJECT_MODE", "local").lower()
 
 if _mode != "api":
     cli.add_option("-v", "--verbose", help="Verbosity")
@@ -32,7 +32,7 @@ if _mode != "api":
 
     cli.set_options_processor(on_process)
 
-if _mode == "cli":
+if _mode in ("cli", "local"):
     logs.debug("Running in CLI mode")
     from .cli import chat_group, ai_group, db_group
 
@@ -41,13 +41,13 @@ if _mode == "cli":
     cli.add_command_group(db_group)
 
 
-if _mode == "api":
+if _mode in ("api", "local"):
     from polarsen.api import api_group
 
     logs.debug("Running in API mode")
     cli.add_command_group(api_group)
 
-if _mode == "bot":
+if _mode in ("bot", "local"):
     from polarsen.bot import bot_group
 
     logs.debug("Running in BOT mode")

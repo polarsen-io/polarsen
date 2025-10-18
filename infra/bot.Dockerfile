@@ -7,10 +7,10 @@ WORKDIR /app
 ENV UV_SYSTEM_PYTHON=1
 ENV UV_PROJECT_ENVIRONMENT=/usr/local
 
-ARG UV_PARAMS="--only-group telegram --only-group default"
+ARG UV_PARAMS="--only-group default --only-group telegram --only-group llms"
 
 # Install dependencies to system Python
-RUN --mount=type=cache,target=/root/.cache/uv \
+RUN --mount=type=cache,target=/root/.cache/uv,id=uv-${PROJECT_MODE} \
     --mount=type=bind,source=uv.lock,target=uv.lock \
     --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
     uv sync --locked --no-install-project --no-dev ${UV_PARAMS}

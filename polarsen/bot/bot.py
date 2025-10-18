@@ -87,6 +87,9 @@ async def handle_message(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
         await update.message.reply_text(user.t("api_key_saved").format(source=user.selected_model_source.title()))
         return
     elif msg == user.t("list_chats_btn"):
+        if not user.chats:
+            await update.message.reply_text(user.t("no_chats"))
+            return
         await update.message.reply_html(fmt_chats(user.chats, user.t))
     elif msg == user.t("select_chats_btn"):
         resp, keyboard = await _select_chat(user)

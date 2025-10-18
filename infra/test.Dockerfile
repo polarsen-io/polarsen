@@ -10,11 +10,11 @@ RUN apk add --no-cache \
     linux-headers \
     libpq libpq-dev
 
-ARG UV_PARAMS="--only-group default --only-group llms --only-group dev --only-group api --only-group telegram"
+ARG UV_PARAMS="--only-group default  --only-group dev --only-group api --only-group telegram"
 
 WORKDIR /app
 
-RUN --mount=type=cache,target=/root/.cache/uv \
+RUN --mount=type=cache,target=/root/.cache/uv,id=uv-tests \
     --mount=type=bind,source=uv.lock,target=uv.lock \
     --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
     uv sync --locked --no-install-project ${UV_PARAMS}
