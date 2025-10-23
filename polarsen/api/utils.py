@@ -116,9 +116,6 @@ async def get_user_uploads(conn: asyncpg.Connection, user_id: int) -> list[ChatU
         """,
         user_id,
     )
-    import pprint
-
-    pprint.pprint(uploads)
     return [_UploadTypeAdapter.validate_python(upload) for upload in uploads]
 
 
