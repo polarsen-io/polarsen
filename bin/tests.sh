@@ -18,6 +18,12 @@ if [ "${1:-}" == "--no-run" ]; then
   shift
 fi
 
+# Check if .env exists otherwise copy from template.env
+if [[ ! -f "infra/.env" ]]; then
+  echo "No .env file found. Copying from template.env"
+  cp infra/template.env infra/.env
+fi
+
 ./bin/start.sh up -d db s3
 ./bin/start.sh --profile test run pg-init-test
 if [ "$_no_run" = false ]; then

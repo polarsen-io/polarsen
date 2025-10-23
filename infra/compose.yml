@@ -196,7 +196,6 @@ services:
     depends_on:
       - db
       - s3
-#      - pg-init-test
     volumes:
       - ../polarsen:/app/polarsen
       - ../tests:/app/tests
