@@ -1,0 +1,37 @@
+# Changelog
+
+{# Default fallbacks in case Commitizen doesn't inject extras #}
+{% set github_repo = github_repo | default("https://github.com/polarsen-io/polarsen") %}
+{% set change_type_map = change_type_map | default({
+  "feat": "🚀 What's New",
+  "fix": "🐛 Bug Fixes",
+  "docs": "📝 Documentation",
+  "perf": "⚡ Performance",
+  "test": "✅ Tests",
+  "chore": "🧹 Chores"
+}) %}
+
+
+{% for entry in tree %}
+{% if entry.version %}
+
+## {{ entry.version }}{% if entry.date %} ({{ entry.date }}){% endif %}
+
+
+{% for change_key, changes in entry.changes.items() %}
+{% if changes %}
+### {{ change_type_map.get(change_key, change_key) }}
+
+{% for change in changes %}
+- {{ change.message }} ([`{{ change.sha1[:7] }}`]({{ github_repo }}/commit/{{ change.sha1 }}))
+{% endfor %}
+
+{% endif %}
+{% endfor %}
+
+{% if not loop.first %}
+_View diff:_ [v{{ tree[loop.index0-1].version }}...v{{ entry.version }}]({{ github_repo }}/compare/v{{ tree[loop.index0-1].version }}...v{{ entry.version }})
+
+{% endif %}
+{% endif %}
+{% endfor %}
