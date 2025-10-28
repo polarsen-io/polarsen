@@ -123,6 +123,11 @@ multiline-quotes = "double"
 ban-relative-imports = "all"
 
 
+[tool.setuptools.packages.find]
+include = ["polarsen*"]
+exclude = ["sql*", "data*", "infra*"]
+
+
 [tool.commitizen]
 version = "0.1.0"
 name = "cz_conventional_commits"
@@ -133,6 +138,7 @@ version_files = [
 bump_message = "chore(release): release $current_version → $new_version"
 
 
-[tool.setuptools.packages.find]
-include = ["polarsen*"]
-exclude = ["sql*", "data*", "infra*"]
+[tool.commitizen.customize]
+template = ".github/templates/CHANGELOG.md.j2"
+commit_parser = "^(?P<change_type>feat|fix|perf|docs|test|chore):\\s(?P<message>.*)?"
+change_type_order = ["feat", "fix", "perf", "docs", "test", "chore"]

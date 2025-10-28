@@ -1,0 +1,86 @@
+name:  Manual Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump_level:
+        description: "Version bump type"
+        required: true
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+        default: "minor"
+      dry_run:
+        description: "Run without committing or pushing"
+        required: true
+        type: boolean
+        default: true
+
+
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Setup UV
+        uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
+        with:
+          version: "latest"
+
+      - name: Install Commitizen
+        run: |
+          uv sync --group bump
+
+      - name: Bump version & generate changelog
+        id: cz
+        run: |
+          git config user.name "Polarsen bot"
+          git config user.email "bot@polarsen.io"
+          echo "🧪 Running Commitizen bump (dry-run=${{ github.event.inputs.dry_run }})"
+          if [[ "${{ github.event.inputs.dry_run }}" == "true" ]]; then
+            uv run cz -n cz_customize bump \
+              --yes \
+              --changelog \
+              --no-verify \
+              --template=.github/templates/CHANGELOG.md.j2 \
+              --increment ${{ github.event.inputs.bump_level }} \
+              --dry-run
+
+          else
+            uv run cz -n cz_customize bump \
+              --yes \
+              --changelog \
+              --no-verify \
+              --template=.github/templates/CHANGELOG.md.j2 \
+              --increment ${{ github.event.inputs.bump_level }}
+          fi
+
+      - name: 🧾 Get new version
+        id: get_version
+        run: |
+          echo "version=$(uv run cz version --project)" >> $GITHUB_OUTPUT
+          echo "New version: $(uv run cz version --project)"
+
+
+      - name: Push tags and changes
+        if: ${{ ! github.event.inputs.dry_run }}
+        run: |
+          branch=$(git rev-parse --abbrev-ref HEAD)
+          echo "Pushing changes and tags to branch: $branch"
+          git push origin "$branch" --follow-tags
+
+      - name: Generate GitHub Release
+        if: ${{ ! github.event.inputs.dry_run }}
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.get_version.outputs.version }}
+          name: "Release ${{ steps.get_version.outputs.version }}"
+          body_path: CHANGELOG.md
