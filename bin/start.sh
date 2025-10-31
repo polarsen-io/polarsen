@@ -13,8 +13,10 @@ set -eou pipefail
 
 cd "$(dirname "$0")/.." || exit 1
 
+
 # If no args are provided, we start in watch mode
 if [ $# -eq 0 ]; then
+  export COMPOSE_PROFILES=listener
   _args="up --build -w"
 else
   _args="$@"

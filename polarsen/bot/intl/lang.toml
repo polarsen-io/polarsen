@@ -9,6 +9,10 @@ list_chats_resp = """
 <b>Liste des groupes disponibles:</b>
 {chats}
 """
+list_uploads_resp = """
+<b>Groupes en cours de traitement:</b>
+{chats}
+"""
 no_chats = "Aucun groupe disponible. Ajoutez d'abord un groupe en utilisant /add_chat."
 last_message = "dernier message"
 selected_chat = "Groupe sélectionné : {chat}"
@@ -46,6 +50,10 @@ no_chats = "No groups available. Please add a group first using /add_chat."
 list_chats_resp = """
 <b>Available groups:</b>
 {chats}
+"""
+list_uploads_resp = """
+<b>Groups being processed:</b>
+{uploads}
 """
 last_message = "last message"
 selected_chat = "Selected group: {chat}"

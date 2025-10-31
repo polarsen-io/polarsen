@@ -104,6 +104,34 @@ services:
 #    profiles:
 #      - api
 
+  chats-listener:
+    develop:
+      watch:
+        - action: rebuild
+          path: ../uv.lock
+        - action: sync
+          path: ../polarsen
+          target: /polarsen
+    build:
+      context: ..
+      dockerfile: infra/cli.Dockerfile
+      args:
+        PROJECT_MODE: "cli"
+    command: [ "-v", "chat", "listen-uploads" ]
+    environment:
+      - S3_ACCESS_KEY_ID=${S3_ACCESS_KEY_ID:-minioadmin}
+      - S3_SECRET_ACCESS_KEY=${S3_SECRET_ACCESS_KEY:-minioadmin}
+      - S3_ENDPOINT=${S3_ENDPOINT:-http://s3:9000}
+      - NB_WORKERS=${NB_WORKERS:-2}
+      - PG_HOST=db
+      - CHAT_UPLOADS_S3_BUCKET=${CHAT_UPLOADS_S3_BUCKET:-chat-uploads}
+      - SLEEP_NO_DATA=${SLEEP_NO_DATA:-60}
+    depends_on:
+      - db
+      - s3
+    profiles:
+      - listener
+
   cli:
     develop:
       watch:

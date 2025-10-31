@@ -4,7 +4,7 @@ from typing import AsyncIterator
 
 import asyncpg
 
-__all__ = ("get_conn",)
+__all__ = ("get_conn", "get_pool")
 
 
 async def init_connection(conn: asyncpg.Connection):
@@ -22,3 +22,9 @@ async def get_conn(pg_url: str, *, timeout: int = 5, no_init: bool = False) -> A
         yield conn
     finally:
         await conn.close()
+
+
+@asynccontextmanager
+async def get_pool(pg_url: str) -> AsyncIterator[asyncpg.pool.Pool]:
+    async with asyncpg.create_pool(pg_url, init=init_connection) as pool:
+        yield pool

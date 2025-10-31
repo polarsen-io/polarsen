@@ -22,7 +22,7 @@ from .utils import APIException, get_user, ErrorCode
 
 VERSION = "0.1.0"
 
-# Not sure where to put this, feel free to move it.
+
 # See: https://github.com/pydantic/pydantic/issues/9406#issuecomment-2104224328
 Mapping.register(asyncpg.Record)  # type: ignore[method-assign]
 

@@ -27,7 +27,7 @@ from polarsen.logs import logs
 from .data import User, UserState, ask_question, give_feedback, upload_chat
 from .env import API_URI
 from .intl import TranslateFn
-from .models import Chat
+from .models import Chat, ChatUpload
 from .models import EmbeddingResult
 from .utils import handle_errors
 
@@ -87,10 +87,13 @@ async def handle_message(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
         await update.message.reply_text(user.t("api_key_saved").format(source=user.selected_model_source.title()))
         return
     elif msg == user.t("list_chats_btn"):
-        if not user.chats:
+        if not user.chats and not user.uploads:
             await update.message.reply_text(user.t("no_chats"))
             return
-        await update.message.reply_html(fmt_chats(user.chats, user.t))
+        html = fmt_chats(chats=user.chats, uploads=user.uploads, t=user.t)
+        if html is None:
+            return
+        await update.message.reply_html(html)
     elif msg == user.t("select_chats_btn"):
         resp, keyboard = await _select_chat(user)
         await update.message.reply_text(resp, reply_markup=keyboard)
@@ -230,7 +233,10 @@ async def list_chats_handler(update: Update, _: ContextTypes.DEFAULT_TYPE) -> No
     if not update.message:
         return
     user = await User.load_user(update.effective_user)
-    await update.message.reply_html(fmt_chats(user.chats, user.t))
+    msg = fmt_chats(chats=user.chats, uploads=user.uploads, t=user.t)
+    if msg is None:
+        return
+    await update.message.reply_html(msg)
 
 
 @handle_errors
@@ -326,7 +332,8 @@ def _is_accessible_message(message: MaybeInaccessibleMessage | None) -> TypeGuar
     return message.is_accessible
 
 
-def fmt_chats(chats: list[Chat], t: TranslateFn) -> str:
+def fmt_chats(chats: list[Chat], uploads: list[ChatUpload], t: TranslateFn) -> str | None:
+    # Processing Chats
     html = ""
     for chat in chats:
         html += textwrap.dedent(
@@ -334,8 +341,30 @@ def fmt_chats(chats: list[Chat], t: TranslateFn) -> str:
         - {id} <i>{name}</i> ({last_message}: {cutoff_date})
         """.format(**chat, last_message=t("last_message"))
         )
-    msg = t("list_chats_resp").format(chats=html)
-    return msg
+    msg, upload_msg = None, None
+    if html:
+        msg = t("list_chats_resp").format(chats=html)
+
+    # Processing Uploads
+    html = ""
+    for upload in uploads:
+        html += textwrap.dedent(
+            """
+        - {file_id} <i>{filename}</i> ({chat_type}, {created_at})
+        """.format(**upload)
+        )
+    if html:
+        upload_msg = t("list_uploads_resp").format(uploads=html)
+
+    # Combine messages
+    _final_msg = ""
+    if msg:
+        _final_msg += msg
+    if upload_msg:
+        if _final_msg:
+            _final_msg += "\n\n"
+        _final_msg += upload_msg
+    return _final_msg if _final_msg else None
 
 
 def _fmt_summaries(summaries: list[EmbeddingResult]) -> str:

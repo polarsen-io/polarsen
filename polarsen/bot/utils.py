@@ -18,10 +18,10 @@ def handle_errors(func):
                 raise ValueError("The first argument must be an instance of telegram.Update")
 
             if not _update_arg.effective_user:
-                return
+                return None
             user = await User.load_user(_update_arg.effective_user)
             if not _update_arg.message:
-                return
+                return None
             await _update_arg.message.reply_text(user.t("error_occurred"))
 
     return wrapper

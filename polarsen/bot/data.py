@@ -14,7 +14,7 @@ from . import models
 from .env import API_URI
 from .intl import i18n
 
-__all__ = ("User", "UserState", "ask_question", "give_feedback")
+__all__ = ("User", "UserState", "ask_question", "give_feedback", "upload_chat")
 
 
 class UserState(Enum):
@@ -38,7 +38,7 @@ class User:
     id: int | None = None  # This will be set after loading the user from the API
     api_keys: dict[AISource, str] = field(default_factory=dict)
     chats: list[models.Chat] = field(default_factory=list)
-    # uploads: list[models.ChatUpload] = field(default_factory=list)
+    uploads: list[models.ChatUpload] = field(default_factory=list)
     selected_chat_id: int | None = None
     selected_model: str | None = None
     state: UserState = UserState.NORMAL
@@ -121,6 +121,7 @@ class User:
         self.selected_model = meta.get("selected_model")
         self.api_keys = {k: v for k, v in (data.get("api_keys") or {}).items() if is_valid_source(k)}
         self.chats = data.get("chats", [])
+        self.uploads = data.get("uploads", [])
 
     def t(self, key: str, *args, **kwargs) -> str:
         return i18n.get(self.lang_code, key, *args, **kwargs)
@@ -132,9 +133,8 @@ class User:
         }
         async with AsyncSession() as session:
             resp = await session.get(f"{API_URI}/users", params=params)
-            resp.raise_for_status()
-        data = resp.json()
-        return data
+        _resp = _check_response(resp)
+        return _UserAdapter.validate_python(_resp) if _resp is not None else None
 
     @staticmethod
     async def fetch_save_user(data: models.NewUser) -> models.User:

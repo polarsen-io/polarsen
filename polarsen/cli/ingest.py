@@ -1,22 +1,32 @@
+import json
+
 import asyncpg
 import botocore.client
 import niquests
 from rich.progress import track
 
-from polarsen.db import TelegramGroup, ChatUpload
 from polarsen import env
+from polarsen.db import TelegramGroup, ChatUpload
 from polarsen.logs import logs
 from polarsen.s3_utils import s3_get_object
-import json
 
 PENDING_CHAT_UPLOADS_QUERY = """
-                             SELECT cu.id, cu.file_path, c.internal_code AS chat_source
-                             FROM general.chat_uploads cu
-                                      LEFT JOIN general.chat_types c ON c.id = cu.chat_type_id
-                             where cu.processed_at IS NULL
-                             ORDER BY cu.created_at
-                             LIMIT $1
-                             """
+WITH next_uploads AS (
+  SELECT id
+  FROM general.chat_uploads
+  WHERE processed_at IS NULL
+  ORDER BY created_at
+  FOR UPDATE SKIP LOCKED
+  LIMIT $1
+)
+SELECT
+  cu.id,
+  cu.file_path,
+  c.internal_code AS chat_source
+FROM next_uploads n
+JOIN general.chat_uploads cu ON cu.id = n.id
+LEFT JOIN general.chat_types c ON c.id = cu.chat_type_id;
+"""
 
 
 async def fetch_pending_uploads(conn: asyncpg.Connection, limit: int = 10_000) -> list[asyncpg.Record]:
@@ -30,14 +40,20 @@ async def process_uploads(
     s3_client: botocore.client.BaseClient,
     *,
     show_progress: bool = False,
-):
+    limit: int = 10_000,
+) -> bool:
+    """
+    Process pending chat uploads from S3 and ingest them into the database.
+    Will mark uploads as processed once done.
+    Returns True if any uploads were processed, False otherwise.
+    """
     bucket = env.CHAT_UPLOADS_S3_BUCKET
     if not bucket:
         raise ValueError("CHAT_UPLOADS_S3_BUCKET must be set")
-    pending_uploads = await fetch_pending_uploads(conn)
+    pending_uploads = await fetch_pending_uploads(conn, limit=limit)
     if not pending_uploads:
-        logs.info("No pending chat uploads to process.")
-        return
+        logs.debug("No pending chat uploads to process.")
+        return False
     logs.info(f"Found {len(pending_uploads)} pending chat uploads to process.")
 
     for _upload in track(pending_uploads, disable=not show_progress, show_speed=True, description="Uploads..."):
@@ -61,3 +77,4 @@ async def process_uploads(
                 raise ValueError(f"Unsupported chat source {chat_source!r}")
 
         await ChatUpload.mark_processed(conn, chat_id=chat_id, upload_id=upload_id)
+    return True

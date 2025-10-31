@@ -22,7 +22,7 @@ target "_common" {
   inherits = ["docker-metadata-action"]
   labels = {
     "org.opencontainers.image.source" = "https://github.com/polarsen/polarsen"
-    "org.opencontainers.image.author" = "julien.brayere@polarsen.com"
+    "org.opencontainers.image.author" = "bot@polarsen.com"
   }
   platforms = ["linux/amd64"]
   args = {
