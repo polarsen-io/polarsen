@@ -28,7 +28,7 @@ class Chat(TypedDict):
 
 class User(BaseModel):
     id: int
-    first_name: str | None
+    first_name: str
     last_name: str | None
     chats: list[Chat]
     api_keys: dict[AISource, str] | None
