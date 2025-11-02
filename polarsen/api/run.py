@@ -1,9 +1,10 @@
+import json
+import logging
 import os
 
-from piou import CommandGroup
 import uvicorn
+from piou import CommandGroup
 from piou import Option, Derived
-import logging
 
 __all__ = ("api_group",)
 
@@ -40,3 +41,16 @@ def start_api(
         # use_colors=use_colors,
         # reload_includes=["api"],
     )
+
+
+@api_group.command(
+    "openapi",
+    help="Generate OpenAPI schema file",
+)
+def generate_openapi(
+    output_file: str = Option("openapi.json", "--output", help="Output file path"),
+):
+    from polarsen.api.main import app
+
+    with open(output_file, "w") as f:
+        json.dump(app.openapi(), f, indent=2)

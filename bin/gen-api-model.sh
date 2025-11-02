@@ -3,12 +3,34 @@
 # DESCRIPTION: Generate API model files from OpenAPI specification.
 # USAGE: ./gen-api-model.sh <openapi-spec-file> <output-dir>
 
-set -xeou pipefail
+set -eou pipefail
 
 cd "$(dirname "$0")/.." || exit 1
 
 readonly _url=${1:-http://localhost:5050/openapi.json}
 
+function wait_service_running() {
+  local url=$1
+  local max_retries=10
+  local wait_seconds=3
+  local attempt=1
+
+  while [ $attempt -le $max_retries ]; do
+    if curl -s "$url" > /dev/null; then
+      echo "Service is running."
+      return 0
+    else
+      echo "Waiting for service to be available... (Attempt: $attempt/$max_retries)"
+      sleep $wait_seconds
+      attempt=$((attempt + 1))
+    fi
+  done
+
+  echo "Service did not become available after $max_retries attempts."
+  exit 1
+}
+
+wait_service_running "$_url"
 readonly _version=$(curl -s "$_url" | jq -r '.info.version')
 readonly _timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 readonly _tmp_header=$(mktemp)
@@ -22,13 +44,25 @@ cat >"$_tmp_header" <<EOF
 EOF
 
 echo "Generating API model files from OpenAPI specification..."
-uv run datamodel-codegen --url "$_url" \
+uv run datamodel-codegen \
+   --url "$_url" \
   --input-file-type openapi \
   --output ./polarsen/bot/models.py \
   --use-standard-collections \
   --enum-field-as-literal all \
   --target-python-version "$(cat .python-version)" \
   --output-model-type typing.TypedDict \
+  --use-double-quotes \
   --custom-file-header-path "$_tmp_header"
 
 echo "API model files generated successfully in ./polarsen/bot/models.py"
+
+rm "$_tmp_header"
+
+# Auto-stage generated model file if modified
+if git diff --quiet ./polarsen/bot/models.py; then
+  echo "No model changes detected."
+else
+  echo "Models updated — adding to commit."
+  git add ./polarsen/bot/models.py
+fi

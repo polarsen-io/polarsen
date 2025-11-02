@@ -6,6 +6,17 @@ repos:
       - id: commitizen
   #      - id: commitizen-branch
   #        stages: [ push ]
+  - repo: local
+    hooks:
+      - id: generate-api-models
+        name: Generate API Models
+        entry: bash bin/gen-api-model.sh
+        language: system
+        pass_filenames: false
+        # Run only when files in polarsen/api/ change
+        files: ^polarsen/api/
+        stages: [pre-commit]
+        verbose: true
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.14.3
     hooks:
@@ -19,14 +30,3 @@ repos:
     rev: 0.9.7
     hooks:
       - id: uv-lock
-  - repo: local
-    hooks:
-      - id: generate-api-models
-        name: Generate API Models
-        entry: bash bin/gen-api-model.sh
-        language: system
-        pass_filenames: false
-        # Run only when files in polarsen/api/ change
-        files: ^polarsen/api/
-        stages: [pre-commit]
-        verbose: true
