@@ -3,7 +3,7 @@
 # DESCRIPTION: Generate API model files from OpenAPI specification.
 # USAGE: ./gen-api-model.sh <openapi-spec-file> <output-dir>
 
-set -eou pipefail
+set -xeou pipefail
 
 cd "$(dirname "$0")/.." || exit 1
 
