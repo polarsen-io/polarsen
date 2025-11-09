@@ -18,6 +18,10 @@ variable "VERSION" {
 
 target "docker-metadata-action" {}
 
+variable "DOCKER_META_TAGS" {
+ default = try(docker-metadata-action.tags, [])
+}
+
 target "_common" {
   inherits = ["docker-metadata-action"]
   labels = {
@@ -34,26 +38,35 @@ target "_common" {
 target "api" {
   inherits = ["_common"]
   dockerfile = "infra/api.Dockerfile"
-  tags = ["${REGISTRY}/polarsen/api:${TAG}"]
   args = {
     PROJECT_MODE = "api"
   }
+  tags = coalescelist(
+    "${DOCKER_META_TAGS}",
+    ["${REGISTRY}/polarsen/api:${TAG}"]
+  )
 }
 
 target "bot" {
   inherits = ["_common"]
   dockerfile = "infra/bot.Dockerfile"
-  tags = ["${REGISTRY}/polarsen/bot:${TAG}"]
   args = {
       PROJECT_MODE = "bot"
   }
+  tags = coalescelist(
+    "${DOCKER_META_TAGS}",
+    ["${REGISTRY}/polarsen/bot:${TAG}"]
+  )
 }
 
 target "cli" {
   inherits = ["_common"]
   dockerfile = "infra/cli.Dockerfile"
-  tags = ["${REGISTRY}/polarsen/cli:${TAG}"]
   args = {
       PROJECT_MODE = "cli"
   }
+  tags = coalescelist(
+    "${DOCKER_META_TAGS}",
+    ["${REGISTRY}/polarsen/cli:${TAG}"]
+  )
 }
