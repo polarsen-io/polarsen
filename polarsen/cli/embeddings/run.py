@@ -51,10 +51,12 @@ async def run_gen_discussions(
 ):
     async with get_conn(pg_url) as conn:
         params: v2.ParamsV2 = {
-            "model_name": model_name,
-            "agent_name": agent_name,
             "disable_thinking": not enable_thinking,
         }
+        if model_name:
+            params["model_name"] = model_name
+        if agent_name:
+            params["agent_name"] = agent_name
         if days:
             params["days"] = days
         if from_date is not None:

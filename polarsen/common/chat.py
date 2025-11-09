@@ -246,7 +246,7 @@ class GeminiChatSession(ChatSession):
         )
         session.headers.pop("Authorization", None)  # Remove any existing Authorization header
         resp, token, payload = await gemini.fetch_completion(
-            session, model=self.model_name, config=config, contents=messages, api_key=self.api_key
+            session, model=self.model_name, config=config, contents=messages
         )
         self.messages.append(
             genai_types.Content(

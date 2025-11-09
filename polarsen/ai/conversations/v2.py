@@ -380,8 +380,8 @@ class ParamsV2(TypedDict):
     days: NotRequired[list[dt.date]]
     from_date: NotRequired[dt.date]
     temperature: NotRequired[float]
-    model_name: str | None
-    agent_name: str | None
+    model_name: NotRequired[str]
+    agent_name: NotRequired[str]
     disable_thinking: NotRequired[bool]
 
 
@@ -392,7 +392,7 @@ async def _get_processed_days(conn: asyncpg.Connection, chat_id: int) -> set[dt.
     """
     query = """
             select distinct (mg.meta ->> 'day')::date as day
-            from ai.message_group_chat mgc
+            from ai.message_group_chats mgc
                      inner join general.chat_messages cm on mgc.msg_id = cm.id
                      left join ai.message_groups mg on mg.id = mgc.group_id
             where cm.chat_id = $1
@@ -409,14 +409,18 @@ async def run_group_messages(
     show_progress: bool = False,
     force: bool = False,
     lang: str = "french",
+    api_key: str | None = None,
     **params: Unpack[ParamsV2],
 ):
     """
     Group messages into discussions.
-    Also compute the summary for each discussion.
+    Also compute the summary for each discussion in the specified `lang` language.
     """
     source, model_name, agent_name = setup_session_model(
-        session, model_name=params.get("model_name"), agent_name=params.get("agent_name")
+        session,
+        model_name=params.get("model_name"),
+        agent_name=params.get("agent_name"),
+        api_key=api_key,
     )
 
     _days = params.get("days")

@@ -12,7 +12,7 @@ from polarsen.s3_utils import s3_get_object
 
 PENDING_CHAT_UPLOADS_QUERY = """
 WITH next_uploads AS (
-  SELECT id
+  SELECT id, user_id
   FROM general.chat_uploads
   WHERE processed_at IS NULL
   ORDER BY created_at
@@ -22,7 +22,8 @@ WITH next_uploads AS (
 SELECT
   cu.id,
   cu.file_path,
-  c.internal_code AS chat_source
+  c.internal_code AS chat_source,
+  cu.user_id as uploaded_by
 FROM next_uploads n
 JOIN general.chat_uploads cu ON cu.id = n.id
 LEFT JOIN general.chat_types c ON c.id = cu.chat_type_id;
@@ -41,11 +42,11 @@ async def process_uploads(
     *,
     show_progress: bool = False,
     limit: int = 10_000,
-) -> bool:
+) -> list[int]:
     """
     Process pending chat uploads from S3 and ingest them into the database.
     Will mark uploads as processed once done.
-    Returns True if any uploads were processed, False otherwise.
+    Returns the list of chat IDs that were processed.
     """
     bucket = env.CHAT_UPLOADS_S3_BUCKET
     if not bucket:
@@ -53,14 +54,15 @@ async def process_uploads(
     pending_uploads = await fetch_pending_uploads(conn, limit=limit)
     if not pending_uploads:
         logs.debug("No pending chat uploads to process.")
-        return False
+        return []
     logs.info(f"Found {len(pending_uploads)} pending chat uploads to process.")
 
+    chat_ids = []
     for _upload in track(pending_uploads, disable=not show_progress, show_speed=True, description="Uploads..."):
         upload_id = _upload["id"]
         file_path = _upload["file_path"]
         chat_source = _upload["chat_source"]
-        lang = "fr"
+        uploaded_by = _upload["uploaded_by"]
 
         logs.debug(f"Processing chat upload {upload_id=} {file_path=} {chat_source=}")
 
@@ -72,9 +74,10 @@ async def process_uploads(
         match chat_source:
             case "telegram":
                 group = TelegramGroup.load(json.loads(file_data.decode("utf-8")), show_progress=show_progress)
-                chat_id = await group.save(conn=conn, lang=lang)
+                chat_id = await group.save(conn=conn, created_by=uploaded_by)
             case _:
                 raise ValueError(f"Unsupported chat source {chat_source!r}")
 
         await ChatUpload.mark_processed(conn, chat_id=chat_id, upload_id=upload_id)
-    return True
+        chat_ids.append(chat_id)
+    return chat_ids

@@ -1,12 +1,15 @@
+import asyncio
 import json
 from dataclasses import dataclass
-from typing import overload, Any, TypeVar
-
+from typing import overload, Any, TypeVar, Callable, Type
+import functools
 import niquests
 import pydantic
+import random
 
+from polarsen.logs import logs
 
-__all__ = ("parse_thinking", "parse_json_response", "JsonResponseError", "TooManyRequestsError")
+__all__ = ("parse_thinking", "parse_json_response", "JsonResponseError", "TooManyRequestsError", "retry_async")
 
 
 def parse_thinking(resp: str, key: str = "think") -> tuple[str, str | None]:
@@ -89,15 +92,112 @@ def parse_json_response(
 
 @dataclass
 class TooManyRequestsError(Exception):
-    message: str
+    """Retry delay in seconds."""
+
+    retry_delay: int
+    message: str | None = None
     response: niquests.Response | None = None
 
     def __post_init__(self):
         if not self.response:
             return
 
-        print(self.response.headers)
+        logs.debug("Too many request headers", self.response.headers)
         try:
-            print(self.response.json())
+            logs.debug("Too many request JSON body", self.response.json())
         except Exception:
-            print(self.response.text)
+            logs.debug("Too many request text Body", self.response.headers)
+
+
+def check_http_response(resp: niquests.Response) -> dict:
+    try:
+        resp.raise_for_status()
+    except niquests.HTTPError as e:
+        logs.error(resp.json())
+        raise e
+    return resp.json()
+
+
+def retry_async(
+    max_attempts: int = 3,
+    delay: float = 1.0,
+    backoff_factor: float = 2.0,
+    jitter: bool = True,
+    exceptions: Type[Exception] | tuple[Type[Exception], ...] = (Exception,),
+    on_retry: Callable[[Exception, int, float], None] | None = None,
+    reraise_on_final_attempt: bool = True,
+):
+    """
+    Async retry decorator with exponential backoff and jitter.
+
+    Args:
+        max_attempts: Maximum number of retry attempts
+        delay: Initial delay between retries in seconds
+        backoff_factor: Multiplier for delay after each failed attempt
+        jitter: Add random jitter to delay to avoid thundering herd
+        exceptions: Exception types to retry on (tuple or single exception)
+        on_retry: Optional callback function called on each retry
+        reraise_on_final_attempt: Whether to reraise the exception on final failure
+    """
+    if isinstance(exceptions, type):
+        exceptions = (exceptions,)
+
+    def decorator(func: Callable) -> Callable:
+        @functools.wraps(func)
+        async def wrapper(*args, **kwargs) -> Any:
+            last_exception = None
+            current_delay = delay
+
+            for attempt in range(1, max_attempts + 1):
+                try:
+                    return await func(*args, **kwargs)
+                except exceptions as e:
+                    last_exception = e
+
+                    if attempt == max_attempts:
+                        logs.error(
+                            f"Function {func.__name__} failed after {max_attempts} attempts. "
+                            f"Final error: {type(e).__name__}: {e}"
+                        )
+                        if reraise_on_final_attempt:
+                            raise
+                        return None
+
+                    # Calculate delay with optional jitter
+                    if isinstance(e, TooManyRequestsError):
+                        actual_delay = e.retry_delay * (0.5 + random.random() if jitter else 1)
+                        logs.debug(
+                            f"Function {func.__name__} received TooManyRequestsError on attempt {attempt}/{max_attempts}. "
+                            f"Retrying in {actual_delay:.2f} seconds..."
+                        )
+                        _backoff_factor = None
+                    else:
+                        actual_delay = current_delay * (0.5 + random.random() if jitter else 1)
+                        logs.warning(
+                            f"Function {func.__name__} failed on attempt {attempt}/{max_attempts}. "
+                            f"Error: {type(e).__name__}: {e}. "
+                            f"Retrying in {actual_delay:.2f} seconds..."
+                        )
+                        current_delay *= backoff_factor
+                        _backoff_factor = backoff_factor
+
+                    # Call retry callback if provided
+                    if on_retry is not None:
+                        on_retry(e, attempt, actual_delay)
+
+                    await asyncio.sleep(actual_delay)
+                    if _backoff_factor is not None:
+                        current_delay *= _backoff_factor
+                except Exception as e:
+                    # Non-retryable exception
+                    logs.error(f"Function {func.__name__} failed with non-retryable exception: {type(e).__name__}: {e}")
+                    raise
+
+            # This should never be reached, but just in case
+            if last_exception and reraise_on_final_attempt:
+                raise last_exception
+            return None
+
+        return wrapper
+
+    return decorator

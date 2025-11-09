@@ -12,9 +12,13 @@ class TableID:
     @property
     def data(self):
         _data = asdict(self)
-        _id = _data.pop("_id")
+        _id = _data.pop("_id", None)
         if _id is not None:
             _data["id"] = _id
+        _created_at = _data.pop("_created_at", None)
+        if _created_at is not None:
+            _data["created_at"] = _created_at
+
         return _data
 
     @property

@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import http.client
-import pprint
 from typing import TYPE_CHECKING, Any
 
 import niquests
@@ -10,6 +8,7 @@ if TYPE_CHECKING:
     from mistralai.models import AgentsCompletionRequestTypedDict
     from mistralai.models import EmbeddingRequestTypedDict, ChatCompletionRequestTypedDict
 
+from http import HTTPStatus
 from polarsen.db import UsageToken
 from polarsen.env import MISTRAL_API_KEY
 from ..utils import TooManyRequestsError
@@ -19,15 +18,25 @@ __all__ = (
     "fetch_embeddings",
     "UsageToken",
     "set_headers",
-    # "get_request_size",
     "fetch_agent_completion",
 )
 
 
-def set_headers(session: niquests.Session):
-    if MISTRAL_API_KEY is None:
+def set_headers(session: niquests.Session, api_key: str | None = None) -> None:
+    _api_key = api_key or MISTRAL_API_KEY
+    if _api_key is None:
         raise ValueError("MISTRAL_API_KEY is not set")
-    session.headers["Authorization"] = f"Bearer {MISTRAL_API_KEY}"
+    session.headers["Authorization"] = f"Bearer {_api_key}"
+
+
+def _check_resp(resp: niquests.Response) -> dict:
+    try:
+        resp.raise_for_status()
+    except niquests.exceptions.HTTPError as e:
+        if resp.status_code == HTTPStatus.TOO_MANY_REQUESTS:
+            raise TooManyRequestsError(retry_delay=-1, response=resp) from e
+        raise e
+    return resp.json()
 
 
 async def fetch_completion(
@@ -38,13 +47,8 @@ async def fetch_completion(
         "https://api.mistral.ai/v1/chat/completions",
         json=request,
     )
-    try:
-        response.raise_for_status()
-    except niquests.exceptions.HTTPError as e:
-        pprint.pprint(response.json())
-        raise e
+    data = _check_resp(response)
 
-    data = response.json()
     content = data["choices"][0]["message"]["content"]
     if isinstance(content, list):
         content = [x for x in content if x["type"] == "text"][0]["text"]
@@ -71,18 +75,8 @@ async def fetch_embeddings(
         "https://api.mistral.ai/v1/embeddings",
         json=request,
     )
+    data = _check_resp(response)
 
-    if response.status_code == http.client.TOO_MANY_REQUESTS:
-        raise TooManyRequestsError(
-            "Mistral API returned 429 Too Many Requests. Please try again later.", response=response
-        )
-    try:
-        response.raise_for_status()
-    except niquests.exceptions.HTTPError as e:
-        print(response.text)
-        raise e
-
-    data = response.json()
     usage_token: UsageToken = {
         "total": data["usage"]["total_tokens"],
         "input": data["usage"]["prompt_tokens"],
@@ -107,13 +101,8 @@ async def fetch_agent_completion(
         "https://api.mistral.ai/v1/agents/completions",
         json=request,
     )
-    try:
-        response.raise_for_status()
-    except niquests.exceptions.HTTPError as e:
-        pprint.pprint(response.json())
-        raise e
 
-    data = response.json()
+    data = _check_resp(response)
     content = data["choices"][0]["message"]["content"]
     usage_token: UsageToken = {
         "total": data["usage"]["total_tokens"],

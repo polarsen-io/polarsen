@@ -42,8 +42,14 @@ def get_source_from_model(model_name: str | None = None, agent_name: str | None 
 
 
 def setup_session_model(
-    session: niquests.Session, model_name: str | None, agent_name: str | None
+    session: niquests.Session,
+    model_name: str | None = None,
+    agent_name: str | None = None,
+    api_key: str | None = None,
 ) -> tuple[AISource, str | None, str | None]:
+    """
+    Setup the session with appropriate headers based on the model or agent name.
+    """
     if not model_name and not agent_name:
         raise ValueError("Either model_name or agent_name must be provided")
 
@@ -52,14 +58,15 @@ def setup_session_model(
 
     if mistral.is_mistral_model(_model_name) or mistral.is_mistral_agent(_agent_name):
         _source = "mistral"
-        mistral.set_headers(session)
+        mistral.set_headers(session, api_key=api_key)
     elif gemini.is_gemini_model(_model_name):
+        gemini.set_headers(session, api_key=api_key)
         _source = "gemini"
     elif openai.is_openai_model(_model_name):
-        openai.set_headers(session)
+        openai.set_headers(session, api_key=api_key)
         _source = "openai"
     elif grok.is_grok_model(_model_name):
-        grok.set_headers(session)
+        grok.set_headers(session, api_key=api_key)
         _source = "grok"
     elif self_hosted.is_self_hosted_model(_model_name):
         _source = "self_hosted"

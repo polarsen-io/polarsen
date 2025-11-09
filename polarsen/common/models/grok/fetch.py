@@ -13,10 +13,11 @@ from polarsen.db import UsageToken
 __all__ = ("set_headers", "fetch_chat_completion")
 
 
-def set_headers(session: niquests.Session):
-    if GROK_API_KEY is None:
+def set_headers(session: niquests.Session, api_key: str | None = None) -> None:
+    _api_key = api_key or GROK_API_KEY
+    if _api_key is None:
         raise ValueError("GROK_API_KEY is not set")
-    session.headers["Authorization"] = f"Bearer {GROK_API_KEY}"
+    session.headers["Authorization"] = f"Bearer {_api_key}"
 
 
 async def fetch_chat_completion(

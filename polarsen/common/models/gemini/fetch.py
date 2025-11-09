@@ -10,22 +10,42 @@ if TYPE_CHECKING:
 from polarsen.env import GEMINI_API_KEY
 from polarsen.logs import logs
 from polarsen.db import UsageToken
+from ..utils import TooManyRequestsError, retry_async
+from http import HTTPStatus
 
-__all__ = ("fetch_completion",)
+__all__ = ("fetch_completion", "set_headers")
 
 
-def _get_api_key() -> str:
-    if GEMINI_API_KEY is None:
+def set_headers(session: niquests.Session, api_key: str | None = None) -> None:
+    _api_key = api_key or GEMINI_API_KEY
+    if _api_key is None:
         raise ValueError("GEMINI_API_KEY is not set")
-    return GEMINI_API_KEY
+    session.headers["x-goog-api-key"] = _api_key
 
 
+def _check_resp(resp: niquests.Response) -> dict:
+    try:
+        resp.raise_for_status()
+    except niquests.exceptions.HTTPError as e:
+        if resp.status_code == HTTPStatus.TOO_MANY_REQUESTS:
+            _retry_delay: int | None = None
+            for _detail in resp.json()["error"]["details"]:
+                if _detail["@type"] == "type.googleapis.com/google.rpc.RetryInfo":
+                    _retry_delay = int(_detail["retryDelay"].replace("s", ""))
+                    break
+            if _retry_delay is None:
+                raise ValueError("Too many requests but no retry info found") from e
+            raise TooManyRequestsError(retry_delay=_retry_delay)
+        raise e
+    return resp.json()
+
+
+@retry_async()
 async def fetch_completion(
     session: niquests.AsyncSession,
     model: str,
     contents: list[types.Content],
     config: types.GenerateContentConfig,
-    api_key: str | None = None,
 ) -> tuple[str, UsageToken, dict]:
     if config.candidate_count is None:
         config.candidate_count = 1
@@ -39,21 +59,11 @@ async def fetch_completion(
     if _sys_instruction is not None:
         payload["system_instruction"] = _sys_instruction
 
-    if api_key is None:
-        api_key = _get_api_key()
-
     response = await session.post(
-        f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}",
+        f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
         json=payload,
     )
-    try:
-        response.raise_for_status()
-    except niquests.exceptions.HTTPError as e:
-        # print(response.headers)
-        print(response.text)
-        raise e
-
-    data = response.json()
+    data = _check_resp(response)
     candidate = data["candidates"][0]
     usage = data["usageMetadata"]
     token: UsageToken = {

@@ -13,7 +13,7 @@ from .env import (
 
 PgHost = Option(PG_HOST, "--host", help="PG Host")
 PgPort = Option(PG_PORT, "--port", help="PG Port")
-PgUser = Option(PG_USER, "--user", help="PG User")
+PgUser = Option(PG_USER, "--pg-user", help="PG User")
 PgPassword = Option(PG_PASSWORD, "-p", help="PG Password")
 PgDatabase = Option(PG_DATABASE, "--db", help="PG Database")
 

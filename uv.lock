@@ -1035,15 +1035,15 @@ wheels = [
 
 [[package]]
 name = "piou"
-version = "0.20.0"
+version = "0.21.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "rich" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/a5/88/3e4e4d243058916f0c29a932a9c57d495b1a40bfa48318f4d65464b9bc25/piou-0.20.0.tar.gz", hash = "sha256:05fa0b77165ec0e91c1ae622961bce8eafdecf3caa160be6b3f0cdbf3c8cf7de", size = 362548, upload-time = "2025-07-13T06:41:36.103Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/30/bc/b11a6434a584c63071edd4aad4d425166e66341db5a4ec6bd20de71b0667/piou-0.21.0.tar.gz", hash = "sha256:b433e814fd7b8da78e2d0d9c0461273c1deb5d59754ae6665339706c97690007", size = 368169, upload-time = "2025-11-09T07:59:11.388Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/18/9a/7e2a75c1a9fadc70ae9926a8a7766781bd1a26bebe8d0fc31b9d83553543/piou-0.20.0-py3-none-any.whl", hash = "sha256:1aa63e6c5d26171594ee236d0519210ae074e2a40abe85fdad9cbc63b8d8c955", size = 23244, upload-time = "2025-07-13T06:41:34.858Z" },
+    { url = "https://files.pythonhosted.org/packages/c6/af/a34dae98ce14ea308200cdd069c90f551a39dc526fbfafe588fdca26ec7e/piou-0.21.0-py3-none-any.whl", hash = "sha256:b6a1d42d4483ebd4d70338061af684059d68cb3cd7793402bab3381c79d086b1", size = 23369, upload-time = "2025-11-09T07:59:10.107Z" },
 ]
 
 [[package]]
@@ -1150,7 +1150,7 @@ cli = [
 default = [
     { name = "asyncpg", specifier = ">=0.30.0" },
     { name = "niquests", specifier = ">=3.15.2" },
-    { name = "piou", specifier = ">=0.20.0" },
+    { name = "piou", specifier = ">=0.21.0" },
     { name = "tracktolib", specifier = ">=0.55.0" },
     { name = "urllib3-future", specifier = ">=2.14.902" },
 ]
@@ -1168,7 +1168,7 @@ dev = [
     { name = "mistralai", specifier = ">=1.6.0" },
     { name = "niquests", specifier = ">=3.15.2" },
     { name = "openai", specifier = ">=1.82.0" },
-    { name = "piou", specifier = ">=0.20.0" },
+    { name = "piou", specifier = ">=0.21.0" },
     { name = "pre-commit", specifier = ">=4.3.0" },
     { name = "psycopg", specifier = ">=3.2.9" },
     { name = "pydantic", specifier = ">=2.11.2" },

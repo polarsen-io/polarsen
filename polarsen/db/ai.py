@@ -56,8 +56,7 @@ class GroupMethod(TableID):
         return {x["internal_code"]: x["id"] for x in _data}
 
     async def upsert(self, conn: asyncpg.Connection) -> int:
-        _data = self.data
-        _data.pop("created_at")
+        _data = super().data
         _id = await insert_returning(
             conn, "ai.message_group_methods", _data, returning="id", on_conflict="ON CONFLICT DO NOTHING"
         )
@@ -89,9 +88,7 @@ class MessageGroup(TableID):
     run_id: uuid.UUID | None = None
 
     async def upsert(self, conn: asyncpg.Connection) -> int:
-        _data = self.data
-        for k in ["created_at"]:
-            _data.pop(k)
+        _data = super().data
         _id = await insert_returning(
             conn,
             "ai.message_groups",
@@ -123,7 +120,6 @@ class MessageGroupChat(TableID):
         _all_data = []
         for m in messages:
             _data = m.data
-            _data.pop("created_at")
             _all_data.append(_data)
         await insert_many(
             conn,
@@ -195,7 +191,6 @@ class Requests(TableID):
 
     async def save(self, conn: asyncpg.Connection):
         data = self.data
-        data.pop("created_at")
         await insert_one(conn, "ai.requests", data)
 
     @staticmethod

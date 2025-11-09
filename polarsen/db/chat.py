@@ -36,9 +36,6 @@ class DBChatUser(TableID):
     @property
     def data(self):
         _data = super().data
-        _created_at = _data.pop("_created_at", None)
-        if _created_at is not None:
-            _data["created_at"] = _created_at
         return _data
 
     @staticmethod
@@ -61,15 +58,11 @@ class DBChatUser(TableID):
 class DbChat(TableID):
     internal_code: str
     name: str
-    _created_at: dt.datetime | None = field(default=None, init=False)
-    # created_at: dt.datetime | None = None
+    created_by: int
 
     @property
     def data(self):
         _data = super().data
-        _created_at = _data.pop("_created_at", None)
-        if _created_at is not None:
-            _data["created_at"] = _created_at
         return _data
 
     @staticmethod
@@ -84,6 +77,61 @@ class DbChat(TableID):
         _data = await conn.fetch(query, internal_codes)
         return {x["internal_code"]: x["id"] for x in _data}
 
+    @staticmethod
+    async def set_is_processing(conn: asyncpg.Connection, chat_ids: list[int]) -> None:
+        await conn.execute(
+            """
+            UPDATE general.chats 
+            SET meta = COALESCE(meta, '{}') || jsonb_build_object(
+                    'processing_started_at', now(),
+                    'status', 'processing'
+            )
+            WHERE id = ANY($1)
+            """,
+            chat_ids,
+        )
+
+    @staticmethod
+    async def set_processing_error(conn: asyncpg.Connection, chat_ids: list[int], message: str | None = None) -> None:
+        await conn.execute(
+            """
+            UPDATE general.chats 
+            SET meta = COALESCE(meta, '{}') || jsonb_build_object(
+                    'processing_error_at', now(),
+                    'status', 'error',
+                    'error_message', $2
+            )
+            WHERE id = ANY($1)
+            """,
+            chat_ids,
+            message,
+        )
+
+    @staticmethod
+    async def set_processing_done(conn: asyncpg.Connection, chat_ids: list[int]) -> None:
+        await conn.execute(
+            """
+            UPDATE general.chats 
+            SET meta = COALESCE(meta, '{}') || jsonb_build_object(
+                    'processing_done_at', now(),
+                    'status', 'done'
+            ) - 'processing_error' - 'error_message'
+            WHERE id = ANY($1)
+            """,
+            chat_ids,
+        )
+
+    @staticmethod
+    async def reset_processing(conn: asyncpg.Connection, chat_ids: list[int]) -> None:
+        await conn.execute(
+            """
+            UPDATE general.chats
+            set meta = meta - 'status'
+            where id = any($1)wo
+            """,
+            chat_ids,
+        )
+
 
 @dataclass
 class DBChatMessage(TableID):
@@ -91,17 +139,12 @@ class DBChatMessage(TableID):
     chat_user_id: int
     sent_at: dt.datetime
     internal_code: str
-    language: str
     message: str
     reply_to_id: int | None = None
-    _created_at: dt.datetime | None = field(default=None, init=False)
 
     @property
     def data(self):
         _data = super().data
-        _created_at = _data.pop("_created_at", None)
-        if _created_at is not None:
-            _data["created_at"] = _created_at
         return _data
 
     @staticmethod
@@ -189,14 +232,11 @@ class TelegramMessage:
             pprint.pprint(msg)
             raise e
 
-    def to_db_message(
-        self, chat_id: int, chat_user_id: int, lang: str, reply_to_chat_id: int | None = None
-    ) -> DBChatMessage:
+    def to_db_message(self, chat_id: int, chat_user_id: int, reply_to_chat_id: int | None = None) -> DBChatMessage:
         return DBChatMessage(
             chat_id=chat_id,
             internal_code=str(self.message_id),
             sent_at=self.message_date,
-            language=lang,
             message=self.text,
             chat_user_id=chat_user_id,
             reply_to_id=reply_to_chat_id,
@@ -240,16 +280,16 @@ class TelegramGroup:
             pprint.pprint(group)
             raise e
 
-    def to_db_chat(self) -> DbChat:
-        return DbChat(internal_code=str(self.group_id), name=self.name)
+    def to_db_chat(self, created_by: int) -> DbChat:
+        return DbChat(internal_code=str(self.group_id), name=self.name, created_by=created_by)
 
-    async def save(self, conn: asyncpg.Connection, lang: str) -> int:
+    async def save(self, conn: asyncpg.Connection, created_by: int) -> int:
         """
         Save the group, its users and messages to the database.
         Return the chat ID.
         """
         # Chat
-        db_chat = self.to_db_chat()
+        db_chat = self.to_db_chat(created_by=created_by)
         await DbChat.bulk_save(conn, [db_chat])
         chat_ids = await DbChat.get_ids(conn, [db_chat.internal_code])
         chat_id = chat_ids[str(self.group_id)]
@@ -268,9 +308,7 @@ class TelegramGroup:
             if m is None:
                 continue
             if m.reply_to_message_id is None:
-                messages.append(
-                    m.to_db_message(chat_user_id=chat_user_ids[str(m.from_user_id)], chat_id=chat_id, lang=lang)
-                )
+                messages.append(m.to_db_message(chat_user_id=chat_user_ids[str(m.from_user_id)], chat_id=chat_id))
             else:
                 response_messages.append(m)
         logs.info(f"Saving {len(messages)} chat messages")
@@ -283,7 +321,6 @@ class TelegramGroup:
             m.to_db_message(
                 chat_user_id=chat_user_ids[str(m.from_user_id)],
                 chat_id=chat_id,
-                lang=lang,
                 reply_to_chat_id=message_ids[str(m.reply_to_message_id)],
             )
             for m in response_messages
