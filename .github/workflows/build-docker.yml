@@ -2,10 +2,12 @@ name: Build and Push Docker Image
 
 on:
   push:
-    branches:
-      - 'master'
     tags:
       - 'v*'
+  workflow_run:
+    workflows: ["Run Tests"]
+    types:
+      - completed
 
 env:
     REGISTRY: rg.fr-par.scw.cloud
@@ -23,6 +25,7 @@ jobs:
         with:
           tags: |
             type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/') }}
+            type=raw,value=latest-nightly,enable=${{ github.ref == format('refs/heads/{0}', 'master') }}
             type=semver,pattern={{version}}
             type=sha,enable=${{ github.ref == format('refs/heads/{0}', 'master') }}
 #            type=ref,event=branch

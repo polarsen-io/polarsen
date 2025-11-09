@@ -9,6 +9,7 @@ PG_PORT = os.getenv("PG_PORT", 5432)
 PG_USER = os.getenv("PG_USER", "postgres")
 PG_PASSWORD = os.getenv("PG_PASSWORD", "postgres")
 PG_DATABASE = os.getenv("PG_DATABASE", "polarsen")
+PG_DSN = os.getenv("PG_DSN")
 
 SQL_DIR = Path(os.getenv("SQL_DIR", _cur_dir.parent / "sql"))
 

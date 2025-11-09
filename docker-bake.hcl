@@ -8,7 +8,7 @@ variable "REGISTRY" {
 }
 
 variable "TAG" {
-  default = "latest"
+  default = "latest-nightly"
 }
 
 variable "VERSION" {

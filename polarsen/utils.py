@@ -3,13 +3,7 @@ from typing import AsyncIterator
 
 from piou import Option, Password
 
-from .env import (
-    PG_HOST,
-    PG_PORT,
-    PG_USER,
-    PG_PASSWORD,
-    PG_DATABASE,
-)
+from .env import PG_HOST, PG_PORT, PG_USER, PG_PASSWORD, PG_DATABASE, PG_DSN
 
 PgHost = Option(PG_HOST, "--host", help="PG Host")
 PgPort = Option(PG_PORT, "--port", help="PG Port")
@@ -25,7 +19,9 @@ def get_pg_url(
     pg_password: Password = PgPassword,
     pg_database: str = PgDatabase,
 ) -> str:
-    return f"postgresql://{pg_user}:{pg_password}@{pg_host}:{pg_port}/{pg_database}"
+    if PG_DSN is not None:
+        return PG_DSN
+    return f"postgres://{pg_user}:{pg_password}@{pg_host}:{pg_port}/{pg_database}"
 
 
 def compute_md5():
