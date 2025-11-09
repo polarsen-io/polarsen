@@ -8,7 +8,7 @@ variable "REGISTRY" {
 }
 
 variable "TAG" {
-  default = "latest-nightly"
+  default = "local"
 }
 
 variable "VERSION" {
@@ -23,6 +23,7 @@ target "_common" {
   labels = {
     "org.opencontainers.image.source" = "https://github.com/polarsen/polarsen"
     "org.opencontainers.image.author" = "bot@polarsen.com"
+    "org.opencontainers.image.licenses" = "FSL-1.1-ALv2"
   }
   platforms = ["linux/amd64"]
   args = {
