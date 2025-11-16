@@ -65,6 +65,7 @@ class ChatUpload(BaseModel):
     file_path: str
     created_at: dt.datetime
     chat_type: str
+    processed_at: dt.datetime | None
 
 
 ChatType = Literal["telegram"]

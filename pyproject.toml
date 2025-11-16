@@ -76,7 +76,7 @@ cli = [
 include = ["polarsen", "tests"]
 exclude = []
 
-pythonVersion = "3.12"
+pythonVersion = "3.13"
 pythonPlatform = "Linux"
 
 [tool.pytest.ini_options]

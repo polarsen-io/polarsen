@@ -75,12 +75,13 @@ def retry_embeddings_generation(
 async def gen_group_embeddings(
     conn: asyncpg.Connection,
     session: AsyncSession,
+    user_id: int,
     group: dict,
     source: Literal["mistral"] = "mistral",
 ):
     inputs = [group["title"], group["summary"]] + group["messages"]
     embedding, tokens = await mistral.fetch_embeddings(session, inputs=inputs)
-    await Requests.load("embedding", tokens).save(conn)
+    await Requests.load("embedding", tokens, user_id=user_id).save(conn)
     if source == "mistral":
         await MistralGroupEmbeddings(
             group_id=group["id"],

@@ -64,7 +64,15 @@ async def run_gen_discussions(
         if temperature is not None:
             params["temperature"] = temperature
         chat_id = (await DbChat.get_ids(conn, [chat_internal_code]))[chat_internal_code]
+        user_id = (await DbChat.get_user_ids(conn, [chat_id]))[chat_id]
         async with AsyncSession(timeout=timeout) as session:
             await v2.run_group_messages(
-                conn, session=session, show_progress=show_progress, force=force, lang=lang, chat_id=chat_id, **params
+                conn,
+                session=session,
+                show_progress=show_progress,
+                force=force,
+                lang=lang,
+                chat_id=chat_id,
+                user_id=user_id,
+                **params,
             )

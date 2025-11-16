@@ -162,6 +162,7 @@ RequestType = Literal["chat", "embedding", "completion"]
 class Requests(TableID):
     request_type: RequestType
     total_tokens: int
+    user_id: int
     input_tokens: int = 0
     output_tokens: int = 0
     cached_tokens: int = 0
@@ -174,6 +175,7 @@ class Requests(TableID):
         cls,
         request_type: RequestType,
         token: UsageToken,
+        user_id: int,
         payload: dict | None = None,
         meta: dict | None = None,
         run_id: uuid.UUID | None = None,
@@ -187,6 +189,7 @@ class Requests(TableID):
             payload=payload,
             meta=meta,
             run_id=run_id,
+            user_id=user_id,
         )
 
     async def save(self, conn: asyncpg.Connection):

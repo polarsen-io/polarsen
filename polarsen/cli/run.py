@@ -6,7 +6,7 @@ from typing import Final
 
 import niquests
 from piou import Option, Derived, CommandGroup
-
+from polarsen.logs import logs
 from polarsen.ai.conversations import v2
 from polarsen.db.chat import CHAT_SOURCE_MAPPING, TelegramGroup
 from polarsen.pg import get_conn, get_pool
@@ -97,6 +97,8 @@ async def _listen_chat_groups(
     }
     if temperature is not None:
         params["temperature"] = temperature
+
+    logs.info(f"Starting segmentation listeners with model {model_name!r} and params: {params}")
     async with get_pool(pg_url) as pool:
         async with asyncio.TaskGroup() as tg:
             for worker_id in range(nb_workers):
