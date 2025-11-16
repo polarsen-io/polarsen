@@ -17,4 +17,5 @@ class WorkerLoggerAdapter(logging.LoggerAdapter):
 
     def process(self, msg, kwargs):
         _worker_id = self.extra["worker_id"] if self.extra is not None else -1
-        return f"[Worker {_worker_id}] {msg}", kwargs
+        _worker_type = self.extra["worker_type"] if self.extra is not None else "Worker"
+        return f"[{_worker_type} {_worker_id}] {msg}", kwargs

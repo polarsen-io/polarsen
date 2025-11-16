@@ -87,6 +87,65 @@ class MessageGroup(TableID):
     meta: dict | None = None
     run_id: uuid.UUID | None = None
 
+    @staticmethod
+    async def set_is_processing(conn: asyncpg.Connection, group_ids: list[int]) -> None:
+        """Set the chats as processing in the meta field."""
+        await conn.execute(
+            """
+            UPDATE ai.message_groups
+            SET meta = COALESCE(meta, '{}') || jsonb_build_object(
+                    'embeddings_started_at', now(),
+                    'embeddings_status', 'processing'
+            )
+            WHERE id = ANY($1)
+            """,
+            group_ids,
+        )
+
+    @staticmethod
+    async def set_processing_error(conn: asyncpg.Connection, group_ids: list[int], message: str | None = None) -> None:
+        """Set the chats as error in the meta field."""
+        await conn.execute(
+            """
+            UPDATE ai.message_groups
+            SET meta = COALESCE(meta, '{}') || jsonb_build_object(
+                    'embeddings_error_at', now(),
+                    'embeddings_status', 'error',
+                    'embeddings_error_message', $2::text
+            )
+            WHERE id = ANY($1)
+            """,
+            group_ids,
+            message,
+        )
+
+    @staticmethod
+    async def set_processing_done(conn: asyncpg.Connection, group_ids: list[int]) -> None:
+        """Set the chats as done in the meta field."""
+        await conn.execute(
+            """
+            UPDATE ai.message_groups
+            SET meta = COALESCE(meta, '{}') || jsonb_build_object(
+                    'embeddings_done_at', now(),
+                    'embeddings_status', 'done'
+            ) - 'embeddings_error_at' - 'embeddings_error_message'
+            WHERE id = ANY($1)
+            """,
+            group_ids,
+        )
+
+    @staticmethod
+    async def reset_processing(conn: asyncpg.Connection, group_ids: list[int]) -> None:
+        """Reset the processing status of the chats in the meta field."""
+        await conn.execute(
+            """
+            UPDATE ai.message_groups
+            SET meta = meta - 'embeddings_status'
+            WHERE id = any($1)
+            """,
+            group_ids,
+        )
+
     async def upsert(self, conn: asyncpg.Connection) -> int:
         _data = super().data
         _id = await insert_returning(

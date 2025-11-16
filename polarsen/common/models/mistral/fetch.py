@@ -5,8 +5,15 @@ from typing import TYPE_CHECKING, Any
 import niquests
 
 if TYPE_CHECKING:
-    from mistralai.models import AgentsCompletionRequestTypedDict
-    from mistralai.models import EmbeddingRequestTypedDict, ChatCompletionRequestTypedDict
+    from mistralai.models import (
+        AgentsCompletionRequestTypedDict,
+        EmbeddingRequestTypedDict,
+        ChatCompletionRequestTypedDict,
+    )
+else:
+    EmbeddingRequestTypedDict = dict
+    ChatCompletionRequestTypedDict = dict
+    AgentsCompletionRequestTypedDict = dict
 
 from http import HTTPStatus
 from polarsen.db import UsageToken
@@ -68,7 +75,7 @@ async def fetch_embeddings(
 ) -> tuple[list[float], UsageToken]:
     request = EmbeddingRequestTypedDict(
         model=model_name,
-        inputs=inputs,
+        input=inputs,  # pyright: ignore[reportCallIssue]
     )
 
     response = await session.post(

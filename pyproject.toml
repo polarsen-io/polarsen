@@ -41,11 +41,11 @@ default = [
 
 
 llms = [
-    "google-genai>=1.29.0",
+    "google-genai>=1.50.1",
     # Needed by google-genai
     "requests>=2.32.0",
-    "mistralai>=1.6.0",
-    "openai>=1.82.0",
+    "mistralai>=1.9.11",
+    "openai>=2.8.0",
     "pydantic>=2.11.2"
 ]
 

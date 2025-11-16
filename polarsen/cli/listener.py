@@ -3,14 +3,16 @@ import asyncio
 import asyncpg
 import botocore.client
 import niquests
+from pydantic import TypeAdapter
 
 from polarsen.ai.conversations import v2
+from polarsen.ai.embeddings import gen_group_embeddings, DEFAULT_EMBEDDING_MODEL, EmbeddingGroup
 from polarsen.common.utils import get_source_from_model, AISource
-from polarsen.db import DbChat
+from polarsen.db import DbChat, MessageGroup
 from polarsen.logs import logs, WorkerLoggerAdapter
 from .ingest import process_uploads
 
-__all__ = ("process_chat_worker", "process_chat_groups_worker")
+__all__ = ("process_chat_worker", "process_chat_groups_worker", "process_embeddings_worker", "DEFAULT_EMBEDDING_MODEL")
 
 
 async def process_chat_worker(
@@ -25,7 +27,7 @@ async def process_chat_worker(
     This will run indefinitely, processing `limit` uploads at a time.
     If no uploads are found, it will sleep for `sleep_no_data` seconds.
     """
-    worker_log = WorkerLoggerAdapter(logs, {"worker_id": worker_id})
+    worker_log = WorkerLoggerAdapter(logs, {"worker_id": worker_id, "worker_type": "UploadWorker"})
 
     async with pool.acquire() as conn:
         async with niquests.AsyncSession() as session:
@@ -56,13 +58,13 @@ async def _get_chats_not_grouped(
     """
     records = await conn.fetch(
         """
-        SELECT mg.id, mg.created_by, u.api_keys->>$2 as api_key, u.id as user_id
+        SELECT mg.id, mg.created_by, u.api_keys ->> $2 AS api_key, u.id AS user_id
         FROM general.chats mg
-        LEFT JOIN general.users u ON u.id = mg.created_by
-        WHERE (mg.meta->>'status' IS NULL OR mg.meta->>'status' NOT IN ('processing', 'done'))
-          AND CASE WHEN $3 THEN u.api_keys->>$2 IS NOT NULL ELSE TRUE END
+                 LEFT JOIN general.users u ON u.id = mg.created_by
+        WHERE (mg.meta ->> 'status' IS NULL OR mg.meta ->> 'status' NOT IN ('processing', 'done'))
+          AND CASE WHEN $3 THEN u.api_keys ->> $2 IS NOT NULL ELSE TRUE END
         ORDER BY mg.id
-        FOR UPDATE OF mg SKIP LOCKED
+            FOR UPDATE OF mg SKIP LOCKED
         LIMIT $1
         """,
         limit,
@@ -90,7 +92,7 @@ async def process_chat_groups_worker(
     When `only_with_keys` is True, only chats where the user has an API key for the model source will be processed.
     This is useful when no global API key is set.
     """
-    worker_log = WorkerLoggerAdapter(logs, {"worker_id": worker_id})
+    worker_log = WorkerLoggerAdapter(logs, {"worker_id": worker_id, "worker_type": "ChatGroupWorker"})
     _model_name = params.get("model_name")
     _source = get_source_from_model(_model_name)
     async with pool.acquire() as conn:
@@ -139,4 +141,95 @@ async def process_chat_groups_worker(
                 if _processing_ids is not None:
                     worker_log.debug(f"Caught an exception, resetting {len(_processing_ids)}")
                     await DbChat.reset_processing(conn, list(_processing_ids))
+                raise
+
+
+class EmbeddingGroupUser(EmbeddingGroup):
+    user_id: int
+
+
+_EmbeddingGroupUserAdapter = TypeAdapter(EmbeddingGroupUser)
+
+
+async def _get_groups_not_embedded(conn: asyncpg.Connection, limit: int = 1) -> list[EmbeddingGroupUser]:
+    """
+    Get chat groups that do not have embeddings yet - i.e., no relation exists in ai.mistral_group_embeddings -
+    and lock them for processing.
+    """
+    records = await conn.fetch(
+        """
+        SELECT mg.id, mg.title, mg.summary, msg.messages, c.created_by AS user_id
+        FROM ai.message_groups mg
+        LEFT JOIN ai.mistral_group_embeddings cge ON cge.group_id = mg.id
+        LEFT JOIN general.chats c ON c.id = mg.chat_id
+        LEFT JOIN LATERAL (
+            SELECT ARRAY_AGG(cm.message ORDER BY cm.sent_at) AS messages
+            FROM ai.message_group_chats m
+                     LEFT JOIN general.chat_messages cm ON cm.id = m.msg_id
+            WHERE m.group_id = mg.id
+              AND cm.message <> ''
+            ) msg ON TRUE
+              -- Ignoring groups that are currently being processed
+        WHERE COALESCE(mg.meta ->> 'embeddings_status' <> 'processing', TRUE)
+             -- Only groups without embeddings yet
+             AND cge.id IS NULL
+        ORDER BY mg.id
+            FOR UPDATE OF mg SKIP LOCKED
+        LIMIT $1
+        """,
+        limit,
+    )
+    return [_EmbeddingGroupUserAdapter.validate_python(row) for row in records]
+
+
+async def process_embeddings_worker(
+    pool: asyncpg.pool.Pool,
+    worker_id: int = 0,
+    limit: int = 1,
+    sleep_no_data: int = 5,
+    timeout: int = 60,
+    run_forever: bool = True,
+    embedding_model: str = DEFAULT_EMBEDDING_MODEL,
+):
+    worker_log = WorkerLoggerAdapter(logs, {"worker_id": worker_id, "worker_type": "EmbeddingWorker"})
+    async with pool.acquire() as conn:
+        async with niquests.AsyncSession(timeout=timeout) as session:
+            worker_log.info("Starting embedding work loop")
+            _processing_ids: set[int] | None = None
+            try:
+                while True:
+                    async with conn.transaction():
+                        _groups = await _get_groups_not_embedded(conn, limit=limit)
+                        if not _groups:
+                            worker_log.debug("No groups found, sleeping...")
+                            await asyncio.sleep(sleep_no_data)
+                            if not run_forever:
+                                break
+                            continue
+                        _group_ids = [_group["id"] for _group in _groups]
+                        _processing_ids = set(_group_ids)
+                        await MessageGroup.set_is_processing(conn, _group_ids)
+
+                    for _group in _groups:
+                        _group_id = _group["id"]
+                        worker_log.debug(f"Processing group {_group_id}")
+                        try:
+                            await gen_group_embeddings(
+                                conn, session, user_id=_group["user_id"], group=_group, model_name=embedding_model
+                            )
+                        except Exception as e:
+                            worker_log.error(f"Error processing group {_group_id}: {e}")
+                            await MessageGroup.set_processing_error(conn, [_group_id], message=str(e))
+                            if not run_forever:
+                                raise e
+                        else:
+                            worker_log.debug(f"Successfully processed group {_group_id}")
+                            await MessageGroup.set_processing_done(conn, [_group_id])
+                        finally:
+                            _processing_ids.remove(_group_id)
+
+            except Exception:
+                if _processing_ids is not None:
+                    worker_log.debug(f"Caught an exception, resetting {len(_processing_ids)}")
+                    await MessageGroup.reset_processing(conn, list(_processing_ids))
                 raise
