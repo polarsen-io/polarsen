@@ -182,7 +182,9 @@ async def give_feedback(question_id: int, feedback: str) -> models.Status:
 
 
 async def download_telegram_file(
-    session: niquests.AsyncSession, url: str, chunk_size: int = -1
+    session: niquests.AsyncSession,
+    url: str,
+    chunk_size: int = -1,
 ) -> tuple[typing.AsyncIterable[bytes], int | None]:
     resp = await session.get(url, stream=True)
     content_length = resp.headers.get("Content-Length")

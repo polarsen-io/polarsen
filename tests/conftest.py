@@ -65,3 +65,6 @@ def aengine(loop):
         yield conn
     finally:
         loop.run_until_complete(conn.close())
+
+
+PG_URL = os.environ["_PG_URL"]

@@ -6,14 +6,19 @@ from typing import Final
 
 import niquests
 from piou import Option, Derived, CommandGroup
-
+from polarsen.logs import logs
 from polarsen.ai.conversations import v2
 from polarsen.db.chat import CHAT_SOURCE_MAPPING, TelegramGroup
 from polarsen.pg import get_conn, get_pool
 from polarsen.s3_utils import get_s3_client
 from polarsen.utils import get_pg_url
 from .ingest import process_uploads
-from .listener import process_chat_worker, process_chat_groups_worker
+from .listener import (
+    process_chat_worker,
+    process_chat_groups_worker,
+    process_embeddings_worker,
+    DEFAULT_EMBEDDING_MODEL,
+)
 
 __all__ = ("chat_group",)
 
@@ -87,6 +92,9 @@ async def _listen_chat_groups(
     nb_workers: int = Option(DEFAULT_NB_WORKERS, "--workers", help="Number of concurrent workers"),
     sleep_no_data: int = Option(SLEEP_NO_DATA, "--sleep-no-data", help="Seconds to sleep when no data is found"),
     model_name: str = Option(v2.SEGMENTATION_MODEL, "--model", help="Model to use for the segmentation"),
+    embedding_model_name: str = Option(
+        DEFAULT_EMBEDDING_MODEL, "--embedding-model", help="Model to use for embeddings"
+    ),
     temperature: float | None = Option(None, "--temperature", help="[V2] Model temperature"),
 ):
     """
@@ -97,9 +105,19 @@ async def _listen_chat_groups(
     }
     if temperature is not None:
         params["temperature"] = temperature
+
+    logs.info(f"Starting segmentation listeners with model {model_name!r} and params: {params}")
+    logs.info(f"Starting embeddings listeners with model {embedding_model_name!r}")
+
     async with get_pool(pg_url) as pool:
         async with asyncio.TaskGroup() as tg:
             for worker_id in range(nb_workers):
                 tg.create_task(
                     process_chat_groups_worker(pool, sleep_no_data=sleep_no_data, worker_id=worker_id, params=params)
+                )
+            for worker_id in range(nb_workers):
+                tg.create_task(
+                    process_embeddings_worker(
+                        pool, sleep_no_data=sleep_no_data, worker_id=worker_id, embedding_model=embedding_model_name
+                    )
                 )

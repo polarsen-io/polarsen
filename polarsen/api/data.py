@@ -95,7 +95,7 @@ class User:
                 telegram_id,
             )
             if not available_chats:
-                logs.warning(f"No chats found for user with telegram_id {telegram_id!r}")
+                logs.debug(f"No chats found for user with telegram_id {telegram_id!r}")
             else:
                 data = [
                     {

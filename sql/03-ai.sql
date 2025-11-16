@@ -84,5 +84,6 @@ CREATE TABLE IF NOT EXISTS ai.requests
     meta          JSONB,
     payload       JSONB,
     -- The run_id is a UUID that is used to track the request and its associated data.
-    run_id        UUID
+    run_id        UUID,
+    user_id       BIGINT      NOT NULL REFERENCES general.users
 );

@@ -1,6 +1,6 @@
 import datetime as dt
-import typing
-from typing import TypedDict, NotRequired, Sequence, Mapping, Any
+from types import EllipsisType
+from typing import TypedDict, NotRequired, Sequence, Mapping, Any, TypeIs, overload, Literal
 
 import psycopg
 from tracktolib.pg_sync import fetch_all
@@ -21,6 +21,13 @@ __all__ = (
     "gen_chat_upload",
     "ChatUpload",
 )
+
+type NotSet = EllipsisType
+NOT_SET: NotSet = ...
+
+
+def is_not_set(value: Any) -> TypeIs[NotSet]:
+    return value is NOT_SET
 
 
 class User(TypedDict):
@@ -58,12 +65,12 @@ def gen_chat_type(name: str | None = None) -> ChatType:
     return {"id": _id, "name": _name, "internal_code": _name.lower()}
 
 
-@typing.overload
-def load_chat_types(engine: psycopg.Connection, as_dict: typing.Literal[False] = False) -> Sequence[ChatType]: ...
+@overload
+def load_chat_types(engine: psycopg.Connection, as_dict: Literal[False] = False) -> Sequence[ChatType]: ...
 
 
-@typing.overload
-def load_chat_types(engine: psycopg.Connection, as_dict: typing.Literal[True]) -> Mapping[str, ChatType]: ...
+@overload
+def load_chat_types(engine: psycopg.Connection, as_dict: Literal[True]) -> Mapping[str, ChatType]: ...
 
 
 def load_chat_types(engine: psycopg.Connection, as_dict: bool = False) -> Sequence[ChatType] | Mapping[str, ChatType]:
@@ -77,12 +84,22 @@ class Chat(TypedDict):
     id: int
     internal_code: str
     name: str
+    created_by: int
+    meta: NotRequired[dict | None]
 
 
-def gen_chat() -> Chat:
+def gen_chat(created_by: int, meta: dict | None | NotSet = NOT_SET) -> Chat:
     _id = Fake.id()
     _name = Fake.unique.name()
-    return {"id": _id, "internal_code": _name.lower(), "name": _name}
+    _data: Chat = {
+        "id": _id,
+        "internal_code": _name.lower(),
+        "name": _name,
+        "created_by": created_by,
+    }
+    if not is_not_set(meta):
+        _data["meta"] = meta
+    return _data
 
 
 class ChatUser(TypedDict):

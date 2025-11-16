@@ -3,6 +3,7 @@ import textwrap
 from enum import Enum
 from typing import TypeGuard
 
+import telegram.error
 from niquests import AsyncSession
 from telegram import (
     Update,
@@ -176,7 +177,14 @@ async def handle_file_upload(update: Update, _: ContextTypes.DEFAULT_TYPE) -> No
         if document.mime_type is None:
             raise ValueError("Document mime type is None")
 
-        file = await document.get_file()
+        try:
+            file = await document.get_file()
+        except telegram.error.BadRequest as e:
+            logs.debug(f"Failed to get file for document {document.file_name}: {e}")
+            await update.message.reply_text(
+                user.t("upload_chat_error") + user.t("error_detail").format(detail=e.message)
+            )
+            return
         url = file._get_encoded_url()
         await upload_chat(url, filename=document.file_name, mime_type=document.mime_type, user_id=user.id)
 
@@ -317,7 +325,7 @@ async def handle_callback_queries(update: Update, _: ContextTypes.DEFAULT_TYPE) 
             else:
                 logs.warning("Query message is not accessible, cannot reply with API key request.")
     elif query.data.startswith(CallbackPrefix.chat.value):
-        selected_chat_id = int(query.data.lstrip(CallbackPrefix.model.value))
+        selected_chat_id = int(query.data.lstrip(CallbackPrefix.chat.value))
         user.selected_chat_id = selected_chat_id
         await query.edit_message_text(text=user.t("selected_chat").format(chat=user.selected_chat_name))
         await user.save()
@@ -348,10 +356,17 @@ def fmt_chats(chats: list[Chat], uploads: list[ChatUpload], t: TranslateFn) -> s
     # Processing Uploads
     html = ""
     for upload in uploads:
+        if upload["processed_at"] is not None:
+            continue
         html += textwrap.dedent(
             """
         - {file_id} <i>{filename}</i> ({chat_type}, {created_at})
-        """.format(**upload)
+        """.format(
+                created_at=upload["created_at"].split("T")[0],
+                chat_type=upload["chat_type"],
+                file_id=upload["file_id"],
+                filename=upload["filename"],
+            )
         )
     if html:
         upload_msg = t("list_uploads_resp").format(uploads=html)

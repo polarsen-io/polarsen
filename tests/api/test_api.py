@@ -165,6 +165,7 @@ class TestUsers:
                     "file_id": telegram_uploads[0]["id"],
                     "filename": telegram_uploads[0]["filename"],
                     "file_path": telegram_uploads[0]["file_path"],
+                    "processed_at": None,
                 }
             ],
         }
