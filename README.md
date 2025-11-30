@@ -1,5 +1,6 @@
 # Polarsen
 
+![banniere-100(1)](https://github.com/user-attachments/assets/6d6be6ae-7483-460d-b29d-321afde94b21)
 
 
 **Polarsen** is an AI assistant that helps you find answers inside your conversations.  
