@@ -6,7 +6,7 @@ import niquests
 from pydantic import TypeAdapter
 
 from polarsen.ai.conversations import v2
-from polarsen.ai.embeddings import gen_group_embeddings, DEFAULT_EMBEDDING_MODEL, EmbeddingGroup
+from polarsen.ai.embeddings import gen_groups_embeddings, DEFAULT_EMBEDDING_MODEL, EmbeddingGroup
 from polarsen.common.utils import get_source_from_model, AISource
 from polarsen.db import DbChat, MessageGroup
 from polarsen.logs import logs, WorkerLoggerAdapter
@@ -185,7 +185,7 @@ async def _get_groups_not_embedded(conn: asyncpg.Connection, limit: int = 1) -> 
 async def process_embeddings_worker(
     pool: asyncpg.pool.Pool,
     worker_id: int = 0,
-    limit: int = 1,
+    chunk_size: int = 100,
     sleep_no_data: int = 5,
     timeout: int = 60,
     run_forever: bool = True,
@@ -199,7 +199,7 @@ async def process_embeddings_worker(
             try:
                 while True:
                     async with conn.transaction():
-                        _groups = await _get_groups_not_embedded(conn, limit=limit)
+                        _groups = await _get_groups_not_embedded(conn, limit=chunk_size)
                         if not _groups:
                             worker_log.debug("No groups found, sleeping...")
                             await asyncio.sleep(sleep_no_data)
@@ -209,24 +209,16 @@ async def process_embeddings_worker(
                         _group_ids = [_group["id"] for _group in _groups]
                         _processing_ids = set(_group_ids)
                         await MessageGroup.set_is_processing(conn, _group_ids)
-
-                    for _group in _groups:
-                        _group_id = _group["id"]
-                        worker_log.debug(f"Processing group {_group_id}")
-                        try:
-                            await gen_group_embeddings(
-                                conn, session, user_id=_group["user_id"], group=_group, model_name=embedding_model
-                            )
-                        except Exception as e:
-                            worker_log.error(f"Error processing group {_group_id}: {e}")
-                            await MessageGroup.set_processing_error(conn, [_group_id], message=str(e))
-                            if not run_forever:
-                                raise e
-                        else:
-                            worker_log.debug(f"Successfully processed group {_group_id}")
-                            await MessageGroup.set_processing_done(conn, [_group_id])
-                        finally:
-                            _processing_ids.remove(_group_id)
+                    try:
+                        await gen_groups_embeddings(conn, session, groups=_groups, model_name=embedding_model)
+                    except Exception as e:
+                        worker_log.error(f"Error processing {len(_groups)} groups: {e}")
+                        await MessageGroup.set_processing_error(conn, _group_ids, message=str(e))
+                        if not run_forever:
+                            raise e
+                    else:
+                        worker_log.debug(f"Successfully processed {len(_groups)} groups")
+                        await MessageGroup.set_processing_done(conn, _group_ids)
 
             except Exception:
                 if _processing_ids is not None:

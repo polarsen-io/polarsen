@@ -72,7 +72,7 @@ async def fetch_embeddings(
     session: niquests.AsyncSession,
     inputs: str | list[str],
     model_name: str = "mistral-embed",
-) -> tuple[list[float], UsageToken]:
+) -> tuple[list[list[float]], UsageToken]:
     request = EmbeddingRequestTypedDict(
         model=model_name,
         input=inputs,  # pyright: ignore[reportCallIssue]
@@ -89,7 +89,7 @@ async def fetch_embeddings(
         "input": data["usage"]["prompt_tokens"],
         "output": data["usage"]["completion_tokens"],
     }
-    return data["data"][0]["embedding"], usage_token
+    return [x["embedding"] for x in data["data"]], usage_token
 
 
 # def get_request_size(tokenizer: "MistralTokenizer", request: ChatCompletionRequest) -> int:

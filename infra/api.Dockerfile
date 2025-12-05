@@ -47,4 +47,3 @@ ADD polarsen/ polarsen/
 USER user
 
 ENTRYPOINT ["python", "-m", "polarsen", "api"]
-

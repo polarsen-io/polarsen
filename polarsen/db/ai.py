@@ -213,6 +213,19 @@ class MistralGroupEmbeddings(TableID):
                          """,
         )
 
+    @staticmethod
+    async def bulk_save(conn: asyncpg.Connection, embeddings: list[MistralGroupEmbeddings]):
+        await insert_many(
+            conn,
+            "ai.mistral_group_embeddings",
+            [e.data for e in embeddings],
+            on_conflict="""
+                         ON CONFLICT (group_id) DO UPDATE SET
+                            embedding = EXCLUDED.embedding,
+                            last_processed_at = EXCLUDED.last_processed_at
+                         """,
+        )
+
 
 RequestType = Literal["chat", "embedding", "completion"]
 

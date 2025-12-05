@@ -1,11 +1,10 @@
 import datetime as dt
+import itertools
 from typing import NotRequired, TypedDict
-
 import asyncpg
 from niquests import AsyncSession
 from pydantic import TypeAdapter
 from rich.progress import track
-
 
 from polarsen.common.models import mistral  # Could be lazy
 from polarsen.common.utils import setup_session_model
@@ -18,6 +17,7 @@ __all__ = (
     "gen_group_embeddings",
     "EmbeddingGroup",
     "EmbeddingGroupAdapter",
+    "gen_groups_embeddings",
 )
 
 DEFAULT_EMBEDDING_MODEL = "mistral-embed"
@@ -28,6 +28,7 @@ class EmbeddingGroup(TypedDict):
     title: str
     summary: str
     messages: list[str]
+    user_id: int
     day: NotRequired[dt.date]
 
 
@@ -42,12 +43,14 @@ async def get_groups(
     from_date: dt.date | None = None,
 ) -> list[EmbeddingGroup]:
     query = """
-            SELECT g.id, 
-                   g.summary, 
-                   g.title, 
-                   msg.messages, 
-                   (g.meta ->> 'day')::DATE AS day
+            SELECT g.id,
+                   g.summary,
+                   g.title,
+                   msg.messages,
+                   (g.meta ->> 'day')::DATE AS day,
+                   c.created_by             AS user_id
             FROM ai.message_groups g
+                     LEFT JOIN general.chats c ON c.id = g.chat_id
                      LEFT JOIN LATERAL (
                 SELECT ARRAY_AGG(cm.message ORDER BY cm.sent_at) AS messages
                 FROM ai.message_group_chats m
@@ -72,6 +75,40 @@ async def get_groups(
     return [EmbeddingGroupAdapter.validate_python(row) for row in data]
 
 
+def _get_embed_input_from_group(group: EmbeddingGroup) -> str:
+    return " ".join([group["title"], group["summary"]] + group["messages"])
+
+
+async def gen_groups_embeddings(
+    conn: asyncpg.Connection,
+    session: AsyncSession,
+    groups: list[EmbeddingGroup],
+    model_name: str = DEFAULT_EMBEDDING_MODEL,
+):
+    """Bulk generate embeddings for a given group and save them to the database."""
+    source, _, _ = setup_session_model(session=session, model_name=model_name)
+
+    # We want to group calls by user to make sure the tracking of tokens is correct
+    for user_id, user_groups in itertools.groupby(groups, key=lambda g: g["user_id"]):
+        all_inputs = [_get_embed_input_from_group(group) for group in user_groups]
+        if source == "mistral":
+            embeddings, tokens = await mistral.fetch_embeddings(session, inputs=all_inputs)
+            if len(groups) != len(embeddings):
+                raise ValueError(
+                    f"Number of embeddings {len(embeddings)} does not match number of groups {len(all_inputs)}"
+                )
+            embeddings = [
+                MistralGroupEmbeddings(group_id=group["id"], embedding=embedding)
+                for group, embedding in zip(groups, embeddings)
+            ]
+            await MistralGroupEmbeddings.bulk_save(conn, embeddings=embeddings)
+        else:
+            raise ValueError(
+                f"Source {source!r} (model: {model_name!r}) is not yet supported for embeddings generation"
+            )
+        await Requests.load("embedding", tokens, user_id=user_id).save(conn)
+
+
 async def gen_group_embeddings(
     conn: asyncpg.Connection,
     session: AsyncSession,
@@ -84,10 +121,10 @@ async def gen_group_embeddings(
     inputs = [group["title"], group["summary"]] + group["messages"]
     source, _, _ = setup_session_model(session=session, model_name=model_name, api_key=api_key)
     if source == "mistral":
-        embedding, tokens = await mistral.fetch_embeddings(session, inputs=inputs)
+        embeddings, tokens = await mistral.fetch_embeddings(session, inputs=inputs)
         await MistralGroupEmbeddings(
             group_id=group["id"],
-            embedding=embedding,
+            embedding=embeddings[0],
         ).save(conn)
     else:
         raise ValueError(f"Source {source} is not supported for embeddings generation")
