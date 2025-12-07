@@ -18,6 +18,12 @@ if ! command -v gh &> /dev/null; then
     exit 0
 fi
 
+# Skip if current commit is tagged (already released)
+if git describe --exact-match --tags HEAD 2>/dev/null; then
+    echo "⏭️  Current commit is tagged, skipping PR update"
+    exit 0
+fi
+
 # Check if there's an open PR for this branch
 PR_NUMBER=$(gh pr view --json number -q '.number' 2>/dev/null || echo "")
 
