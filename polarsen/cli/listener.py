@@ -214,11 +214,15 @@ async def process_embeddings_worker(
                     except Exception as e:
                         worker_log.error(f"Error processing {len(_groups)} groups: {e}")
                         await MessageGroup.set_processing_error(conn, _group_ids, message=str(e))
+                        _processing_ids = None  # Clear to prevent reset in outer except block
                         if not run_forever:
                             raise e
                     else:
                         worker_log.debug(f"Successfully processed {len(_groups)} groups")
                         await MessageGroup.set_processing_done(conn, _group_ids)
+
+                    if not run_forever:
+                        break
 
             except Exception:
                 if _processing_ids is not None:

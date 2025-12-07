@@ -20,10 +20,20 @@ __all__ = (
     "gen_telegram_group",
     "gen_chat_upload",
     "ChatUpload",
+    "ChatMessage",
+    "gen_chat_message",
+    "MessageGroupMethod",
+    "gen_message_group_method",
+    "MessageGroup",
+    "gen_message_group",
+    "MessageGroupChat",
+    "gen_message_group_chat",
+    "DEFAULT_DATETIME",
 )
 
 type NotSet = EllipsisType
 NOT_SET: NotSet = ...
+DEFAULT_DATETIME = dt.datetime(2024, 1, 1, 10, 0, 0)
 
 
 def is_not_set(value: Any) -> TypeIs[NotSet]:
@@ -74,7 +84,7 @@ def load_chat_types(engine: psycopg.Connection, as_dict: Literal[True]) -> Mappi
 
 
 def load_chat_types(engine: psycopg.Connection, as_dict: bool = False) -> Sequence[ChatType] | Mapping[str, ChatType]:
-    data: list[Any] = fetch_all(engine, "SELECT id, name, internal_code from general.chat_types")
+    data: list[Any] = fetch_all(engine, "SELECT id, name, internal_code FROM general.chat_types")
     if as_dict:
         return {x["internal_code"]: x for x in data}
     return [{"id": x["id"], "name": x["name"], "internal_code": x["internal_code"]} for x in data]
@@ -211,4 +221,90 @@ def gen_chat_upload(
         "md5": Fake.md5(),
         "processed_at": processed_at,
         "chat_type_id": chat_type_id,
+    }
+
+
+class ChatMessage(TypedDict):
+    id: int
+    chat_user_id: int
+    chat_id: int
+    message: str
+    internal_code: str
+    sent_at: dt.datetime
+
+
+def gen_chat_message(
+    chat_user_id: int, chat_id: int, message: str | None = None, sent_at: dt.datetime = DEFAULT_DATETIME
+) -> ChatMessage:
+    _id = Fake.id()
+    return {
+        "id": _id,
+        "chat_user_id": chat_user_id,
+        "chat_id": chat_id,
+        "message": message if message is not None else Fake.sentence(),
+        "internal_code": f"msg_{_id}",
+        "sent_at": sent_at,
+    }
+
+
+class MessageGroupMethod(TypedDict):
+    id: int
+    name: str
+    internal_code: str
+    meta: NotRequired[dict | None]
+
+
+def gen_message_group_method(name: str | None = None, internal_code: str | None = None) -> MessageGroupMethod:
+    _id = Fake.id()
+    _name = name if name is not None else f"Method {_id}"
+    _code = internal_code if internal_code is not None else f"method_{_id}"
+    return {
+        "id": _id,
+        "name": _name,
+        "internal_code": _code,
+    }
+
+
+class MessageGroup(TypedDict):
+    id: int
+    chat_id: int
+    group_method_id: int
+    internal_code: str
+    summary: str | None
+    title: str | None
+    meta: NotRequired[dict | None]
+
+
+def gen_message_group(
+    chat_id: int,
+    group_method_id: int,
+    summary: str | None = None,
+    title: str | None = None,
+    meta: dict | None | NotSet = NOT_SET,
+) -> MessageGroup:
+    _id = Fake.id()
+    _data: MessageGroup = {
+        "id": _id,
+        "chat_id": chat_id,
+        "group_method_id": group_method_id,
+        "internal_code": f"group_{_id}",
+        "summary": summary if summary is not None else Fake.sentence(),
+        "title": title if title is not None else Fake.sentence(),
+    }
+    if not is_not_set(meta):
+        _data["meta"] = meta
+    return _data
+
+
+class MessageGroupChat(TypedDict):
+    group_id: int
+    chat_id: int
+    msg_id: int
+
+
+def gen_message_group_chat(group_id: int, chat_id: int, msg_id: int) -> MessageGroupChat:
+    return {
+        "group_id": group_id,
+        "chat_id": chat_id,
+        "msg_id": msg_id,
     }
