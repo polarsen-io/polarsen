@@ -95,6 +95,11 @@ jobs:
               --template=.github/templates/CHANGELOG.md.j2 \
               --increment ${{ steps.params.outputs.bump_level }} \
               $PRERELEASE_FLAG
+
+            # Update lock file after version bump
+            uv lock
+            git add uv.lock
+            git commit --amend --no-edit --no-verify
           fi
 
       - name: 🧾 Get new version
