@@ -47,10 +47,14 @@ async def _setup_db(
         for file in sorted(SQL_DIR.glob("*.sql")):
             logs.debug(f"Executing {file}...")
             sql = file.read_text()
+            file_start = time.time()
             await conn.execute(sql)
+            file_duration = time.time() - file_start
+            if file_duration > 2:
+                logs.warning(f"File {file.name} took longer than expected ({file_duration:.2f}s > 2s)")
 
         if not no_data:
             await insert_many(conn, "general.chat_types", CHAT_TYPES, on_conflict="ON CONFLICT DO NOTHING")
 
-    logs.info(f"Database setup completed, took {time.time() - start:.2f}s")
-    # Insert initial data if needed
+    duration = time.time() - start
+    logs.info(f"Database setup completed, took {duration:.2f}s")

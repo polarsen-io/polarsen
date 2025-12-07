@@ -1,7 +1,7 @@
 import asyncio
 import json
 from dataclasses import dataclass
-from typing import overload, Any, TypeVar, Callable, Type
+from typing import overload, Any, Callable, Type
 import functools
 import niquests
 import pydantic
@@ -15,7 +15,7 @@ __all__ = ("parse_thinking", "parse_json_response", "JsonResponseError", "TooMan
 def parse_thinking(resp: str, key: str = "think") -> tuple[str, str | None]:
     """
     Remove the thinking part from the response if it exists.
-    Usually, the thinking part is between "<think></think>.
+    Usually, the thinking part is between "<think></think>".
     """
     if f"<{key}>" in resp and f"</{key}>" in resp:
         thinking = resp.split(f"<{key}>")[1].split(f"</{key}>")[0].strip()
@@ -25,9 +25,6 @@ def parse_thinking(resp: str, key: str = "think") -> tuple[str, str | None]:
     return resp, thinking
 
 
-T = TypeVar("T")
-
-
 @overload
 def parse_json_response(
     resp: str, *, thinking_key: None = None, model: None = None
@@ -35,7 +32,7 @@ def parse_json_response(
 
 
 @overload
-def parse_json_response(
+def parse_json_response[T](
     resp: str, *, thinking_key: str | None = None, model: pydantic.TypeAdapter[T]
 ) -> tuple[T | list[T], str | None]: ...
 
@@ -55,7 +52,7 @@ class JsonResponseError(Exception):
         self.thinking_text = thinking_text
 
 
-def parse_json_response(
+def parse_json_response[T](
     resp: Any, *, thinking_key: str | None = None, model: pydantic.TypeAdapter[T] | None = None
 ) -> tuple[list[T] | T | dict | dict, str | None]:
     """

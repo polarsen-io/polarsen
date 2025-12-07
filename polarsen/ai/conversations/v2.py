@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-import asyncpg
 import datetime as dt
 import json
-import niquests
 import time
 import uuid
 from typing import TypedDict, Iterable, Unpack, NotRequired, Literal, cast, TYPE_CHECKING
+
+import asyncpg
 
 if TYPE_CHECKING:
     from mistralai import models as mistral_models
@@ -18,10 +18,9 @@ from rich.progress import track
 
 from polarsen.common.utils import setup_session_model, AISource
 from polarsen.common.models import mistral, grok, gemini, self_hosted, openai
-from polarsen.common.models.utils import parse_json_response, JsonResponseError
+from polarsen.common.models.utils import parse_json_response
 from polarsen.db import GroupMethod, Requests, MessageGroupChat, MessageGroup, get_unique_identifier, UsageToken
 from polarsen.logs import logs
-from polarsen.ai.conversations.utils import retry_async
 
 __all__ = ("get_messages_by_dates", "apply_conversation_segmentation", "MessageLite", "ParamsV2", "SEGMENTATION_MODEL")
 
@@ -45,10 +44,10 @@ _MessageLiteType = TypeAdapter(MessageLite)
 
 _MESSAGES_BY_DATE = """
                     select cm.id,
-                           cm.chat_user_id                    as u,
-                           cu.username                        as username,
-                           cm.message                         as m,
-                           cm.reply_to_id                     as r_id,
+                           cm.chat_user_id as u,
+                           cu.username     as username,
+                           cm.message      as m,
+                           cm.reply_to_id  as r_id,
                            (sent_at at time zone 'UTC')::text as s
                     from general.chat_messages cm
                              left join general.chat_users cu on cu.id = cm.chat_user_id
@@ -238,36 +237,6 @@ async def _fetch_openai_segmentation(
     return resp, token, payload
 
 
-# Specific retry decorator for your conversation segmentation function
-def retry_conversation_segmentation(
-    max_attempts: int = 3,
-    delay: float = 2.0,
-    backoff_factor: float = 1.5,
-):
-    """
-    Specialized retry decorator for conversation segmentation function.
-    Retries on network errors, API rate limits, and temporary service issues.
-    """
-    # Common exceptions that should trigger retries for API calls
-    retryable_exceptions = (JsonResponseError, niquests.HTTPError)
-
-    def log_retry_attempt(exception: Exception, attempt: int, delay: float):
-        logs.warning(
-            f"Conversation segmentation retry {attempt}: {type(exception).__name__}: {exception}. "
-            f"Retrying in {delay:.1f}s"
-        )
-
-    return retry_async(
-        max_attempts=max_attempts,
-        delay=delay,
-        backoff_factor=backoff_factor,
-        jitter=True,
-        exceptions=retryable_exceptions,
-        on_retry=log_retry_attempt,
-        reraise_on_final_attempt=True,
-    )
-
-
 class ConversationSegResult(TypedDict):
     title: str
     summary: str
@@ -277,12 +246,12 @@ class ConversationSegResult(TypedDict):
 _ConversationSegResultType = TypeAdapter(ConversationSegResult)
 
 
-@retry_conversation_segmentation(max_attempts=3, delay=2.0)
 async def apply_conversation_segmentation(
     session: AsyncSession,
     messages: Iterable[MessageLite],
     source: AISource,
     lang: str,
+    user_id: int,
     model_name: str | None = None,
     agent_name: str | None = None,
     conn: asyncpg.Connection | None = None,
@@ -359,7 +328,9 @@ async def apply_conversation_segmentation(
             _meta: dict = {**(meta or {}), "elapsed": time.time() - start, "thinking": _thinking}
             if thinking_text is not None:
                 _meta["thinking_text"] = thinking_text
-            await Requests.load("completion", token=token, payload=payload, meta=_meta, run_id=run_id).save(conn)
+            await Requests.load(
+                "completion", user_id=user_id, token=token, payload=payload, meta=_meta, run_id=run_id
+            ).save(conn)
 
     results = result if isinstance(result, list) else [result]
 
@@ -391,10 +362,11 @@ async def _get_processed_days(conn: asyncpg.Connection, chat_id: int) -> set[dt.
     Not all messages of the day needs to be processed, just one message.
     """
     query = """
-            select distinct (mg.meta ->> 'day')::date as day
+            select distinct (mg.meta ->> 'day') ::date as day
             from ai.message_group_chats mgc
-                     inner join general.chat_messages cm on mgc.msg_id = cm.id
-                     left join ai.message_groups mg on mg.id = mgc.group_id
+                inner join general.chat_messages cm
+            on mgc.msg_id = cm.id
+                left join ai.message_groups mg on mg.id = mgc.group_id
             where cm.chat_id = $1
             order by day
             """
@@ -406,6 +378,7 @@ async def run_group_messages(
     conn: asyncpg.Connection,
     session: AsyncSession,
     chat_id: int,
+    user_id: int,
     show_progress: bool = False,
     force: bool = False,
     lang: str = "french",
@@ -440,7 +413,7 @@ async def run_group_messages(
             SELECT distinct cm.sent_at::date as d
             from general.chat_messages cm
             where cm.chat_id = $1
-                and $2::date is null
+              and $2::date is null
                or cm.sent_at::date >= $2
             order by d
             """,
@@ -473,6 +446,7 @@ async def run_group_messages(
             raise_invalid_ids=False,
             run_id=run_id,
             disable_thinking=_disable_thinking,
+            user_id=user_id,
         )
         if invalid_ids:
             logs.warning(f"Invalid ids found: {invalid_ids}")

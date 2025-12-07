@@ -1,3 +1,6 @@
+name: polarsen-dev
+
+
 volumes:
   db-data:
     name: polarsen_db
@@ -118,7 +121,7 @@ services:
       args:
         PROJECT_MODE: "cli"
     restart: unless-stopped
-    command: [ "-v", "chat", "listen-uploads" ]
+    command: [ "-vv", "chat", "listen-uploads" ]
     environment:
       - S3_ACCESS_KEY_ID=${S3_ACCESS_KEY_ID:-minioadmin}
       - S3_SECRET_ACCESS_KEY=${S3_SECRET_ACCESS_KEY:-minioadmin}
@@ -147,7 +150,7 @@ services:
       args:
         PROJECT_MODE: "cli"
     restart: unless-stopped
-    command: [ "-v", "chat", "listen-segmentation" ]
+    command: [ "-vv", "chat", "listen-segmentation" ]
     environment:
       - NB_WORKERS=${NB_WORKERS:-2}
       - PG_HOST=db

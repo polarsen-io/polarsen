@@ -108,7 +108,8 @@ async def get_user_uploads(conn: asyncpg.Connection, user_id: int) -> list[ChatU
                cu.filename,
                cu.file_path,
                cu.created_at,
-               ct.name as chat_type
+               ct.name as chat_type,
+               cu.processed_at
         FROM general.chat_uploads cu
         left join general.chat_types ct on cu.chat_type_id = ct.id
         WHERE user_id = $1

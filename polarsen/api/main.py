@@ -229,6 +229,7 @@ async def _upload_chat(
         chat_type=_chat_type["name"],
         created_at=chat_upload.created_at,
         file_path=file_path,
+        processed_at=chat_upload.processed_at,
     )
 
 

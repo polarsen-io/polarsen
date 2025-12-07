@@ -2,11 +2,19 @@ from typing import get_args, Literal, TypeGuard
 
 import niquests
 
+from polarsen import env
 from .models import mistral, gemini, openai, grok, self_hosted
 
-__all__ = ("setup_session_model", "AISource", "get_source_from_model", "is_valid_source")
+__all__ = ("setup_session_model", "AISource", "get_source_from_model", "is_valid_source", "ENV_VARS")
 
 AISource = Literal["mistral", "gemini", "openai", "grok", "self_hosted"]
+
+ENV_VARS: dict[AISource, str | None] = {
+    "mistral": env.MISTRAL_API_KEY,
+    "gemini": env.GEMINI_API_KEY,
+    "openai": env.OPENAI_API_KEY,
+    "grok": env.GROK_API_KEY,
+}
 
 
 def is_valid_source(source: str | None) -> TypeGuard[AISource]:

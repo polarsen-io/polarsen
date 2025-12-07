@@ -4,20 +4,9 @@ import os
 from piou import Cli
 
 from polarsen.logs import init_logs, logs
+from polarsen.telemetry.sentry import init_sentry
 
-try:
-    import sentry_sdk
-except ImportError:
-    sentry_sdk = None
-
-if sentry_sdk is not None and os.getenv("SENTRY_DSN"):
-    sentry_sdk.init(
-        dsn=os.getenv("SENTRY_DSN"),
-        # Add data like request headers and IP for users,
-        # see https://docs.sentry.io/platforms/python/data-management/data-collected/ for more info
-        send_default_pii=True,
-    )
-
+init_sentry()
 
 cli = Cli("Polarsen utility commands")
 

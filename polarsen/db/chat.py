@@ -73,12 +73,21 @@ class DbChat(TableID):
 
     @staticmethod
     async def get_ids(conn: asyncpg.Connection, internal_codes: list[str]) -> dict[str, int]:
+        """Given a list of internal_codes, return a mapping of internal_code to chat ID."""
         query = "SELECT id, internal_code FROM general.chats WHERE internal_code = ANY($1)"
         _data = await conn.fetch(query, internal_codes)
         return {x["internal_code"]: x["id"] for x in _data}
 
     @staticmethod
+    async def get_user_ids(conn: asyncpg.Connection, chat_ids: list[int]) -> dict[int, int]:
+        """Given a list of chat IDs, return a mapping of chat ID to user ID."""
+        query = "SELECT id, user_id FROM general.chats WHERE id = ANY($1)"
+        _data = await conn.fetch(query, chat_ids)
+        return {x["id"]: x["user_id"] for x in _data}
+
+    @staticmethod
     async def set_is_processing(conn: asyncpg.Connection, chat_ids: list[int]) -> None:
+        """Set the chats as processing in the meta field."""
         await conn.execute(
             """
             UPDATE general.chats 
@@ -93,13 +102,14 @@ class DbChat(TableID):
 
     @staticmethod
     async def set_processing_error(conn: asyncpg.Connection, chat_ids: list[int], message: str | None = None) -> None:
+        """Set the chats as error in the meta field."""
         await conn.execute(
             """
             UPDATE general.chats 
             SET meta = COALESCE(meta, '{}') || jsonb_build_object(
                     'processing_error_at', now(),
                     'status', 'error',
-                    'error_message', $2
+                    'error_message', $2::text
             )
             WHERE id = ANY($1)
             """,
@@ -109,6 +119,7 @@ class DbChat(TableID):
 
     @staticmethod
     async def set_processing_done(conn: asyncpg.Connection, chat_ids: list[int]) -> None:
+        """Set the chats as done in the meta field."""
         await conn.execute(
             """
             UPDATE general.chats 
@@ -123,11 +134,12 @@ class DbChat(TableID):
 
     @staticmethod
     async def reset_processing(conn: asyncpg.Connection, chat_ids: list[int]) -> None:
+        """Reset the processing status of the chats in the meta field."""
         await conn.execute(
             """
             UPDATE general.chats
             set meta = meta - 'status'
-            where id = any($1)wo
+            where id = any($1)
             """,
             chat_ids,
         )

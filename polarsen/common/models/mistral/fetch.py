@@ -5,8 +5,15 @@ from typing import TYPE_CHECKING, Any
 import niquests
 
 if TYPE_CHECKING:
-    from mistralai.models import AgentsCompletionRequestTypedDict
-    from mistralai.models import EmbeddingRequestTypedDict, ChatCompletionRequestTypedDict
+    from mistralai.models import (
+        AgentsCompletionRequestTypedDict,
+        EmbeddingRequestTypedDict,
+        ChatCompletionRequestTypedDict,
+    )
+else:
+    EmbeddingRequestTypedDict = dict
+    ChatCompletionRequestTypedDict = dict
+    AgentsCompletionRequestTypedDict = dict
 
 from http import HTTPStatus
 from polarsen.db import UsageToken
@@ -65,10 +72,10 @@ async def fetch_embeddings(
     session: niquests.AsyncSession,
     inputs: str | list[str],
     model_name: str = "mistral-embed",
-) -> tuple[list[float], UsageToken]:
+) -> tuple[list[list[float]], UsageToken]:
     request = EmbeddingRequestTypedDict(
         model=model_name,
-        inputs=inputs,
+        input=inputs,  # pyright: ignore[reportCallIssue]
     )
 
     response = await session.post(
@@ -82,7 +89,7 @@ async def fetch_embeddings(
         "input": data["usage"]["prompt_tokens"],
         "output": data["usage"]["completion_tokens"],
     }
-    return data["data"][0]["embedding"], usage_token
+    return [x["embedding"] for x in data["data"]], usage_token
 
 
 # def get_request_size(tokenizer: "MistralTokenizer", request: ChatCompletionRequest) -> int:
