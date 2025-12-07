@@ -1,9 +1,10 @@
 name: Release
 
 on:
-  # Auto pre-release on PR merge to master
-  pull_request:
-    types: [closed]
+  # Auto pre-release on PR merge to master (after tests pass)
+  workflow_run:
+    workflows: ["Run Tests"]
+    types: [completed]
     branches: [master]
 
   # Manual release
@@ -32,8 +33,8 @@ on:
 jobs:
   release:
     runs-on: ubuntu-latest
-    # Only run on merged PRs or manual trigger
-    if: github.event_name == 'workflow_dispatch' || (github.event.pull_request.merged == true)
+    # Only run on successful test completion or manual trigger
+    if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success')
     permissions:
       contents: write
 
@@ -53,8 +54,8 @@ jobs:
       - name: Determine release parameters
         id: params
         run: |
-          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
-            # Auto-release on PR merge: patch + prerelease
+          if [[ "${{ github.event_name }}" == "workflow_run" ]]; then
+            # Auto-release after tests pass on master: patch + prerelease
             echo "bump_level=patch" >> $GITHUB_OUTPUT
             echo "prerelease=true" >> $GITHUB_OUTPUT
             echo "dry_run=false" >> $GITHUB_OUTPUT

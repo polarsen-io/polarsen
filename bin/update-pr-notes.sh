@@ -53,14 +53,21 @@ EOF
 if echo "$EXISTING_BODY" | grep -q "$START_MARKER"; then
     # Replace existing auto-generated section, preserve user content
     PR_BODY=$(echo "$EXISTING_BODY" | sed "/$START_MARKER/,/$END_MARKER/d")
-    PR_BODY="${AUTO_SECTION}
-${PR_BODY}"
-else
-    # No existing section, prepend auto-generated content
-    if [ -n "$EXISTING_BODY" ]; then
-        PR_BODY="${AUTO_SECTION}
+    # Remove leading/trailing blank lines from user content
+    PR_BODY=$(echo "$PR_BODY" | sed '/^$/d')
+    if [ -n "$PR_BODY" ]; then
+        PR_BODY="${PR_BODY}
 
-${EXISTING_BODY}"
+${AUTO_SECTION}"
+    else
+        PR_BODY="$AUTO_SECTION"
+    fi
+else
+    # No existing section, append auto-generated content
+    if [ -n "$EXISTING_BODY" ]; then
+        PR_BODY="${EXISTING_BODY}
+
+${AUTO_SECTION}"
     else
         PR_BODY="$AUTO_SECTION"
     fi
