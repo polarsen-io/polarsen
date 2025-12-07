@@ -85,6 +85,7 @@ jobs:
               --yes \
               --changelog \
               --no-verify \
+              --version-scheme semver \
               --template=.github/templates/CHANGELOG.md.j2 \
               --increment ${{ steps.params.outputs.bump_level }} \
               $PRERELEASE_FLAG \
@@ -94,6 +95,7 @@ jobs:
               --yes \
               --changelog \
               --no-verify \
+              --version-scheme semver \
               --template=.github/templates/CHANGELOG.md.j2 \
               --increment ${{ steps.params.outputs.bump_level }} \
               $PRERELEASE_FLAG
