@@ -3,9 +3,9 @@ name: Build and Push Docker Image
 on:
   push:
     tags:
-      - 'v*'
+      - '*'  # Triggered by version tags from Release workflow
   workflow_run:
-    workflows: ["Run Tests"]
+    workflows: ["Release"]
     types:
       - completed
 
@@ -16,6 +16,8 @@ jobs:
 
   buildx:
     runs-on: ubuntu-latest
+    # Only run on tag push or successful release
+    if: github.event_name == 'push' || (github.event.workflow_run.conclusion == 'success')
 
     steps:
 

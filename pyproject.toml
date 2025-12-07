@@ -140,5 +140,5 @@ bump_message = "chore(release): release $current_version → $new_version"
 
 [tool.commitizen.customize]
 template = ".github/templates/CHANGELOG.md.j2"
-commit_parser = "^(?P<change_type>feat|fix|perf|docs|test|chore):\\s(?P<message>.*)?"
+commit_parser = "^(?P<change_type>feat|fix|perf|docs|test|chore)(\\(.*\\))?:\\s(?P<message>.*)?"
 change_type_order = ["feat", "fix", "perf", "docs", "test", "chore"]
