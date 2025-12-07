@@ -3,10 +3,9 @@ import asyncio
 import asyncpg
 import botocore.client
 import niquests
-from pydantic import TypeAdapter
 
 from polarsen.ai.conversations import v2
-from polarsen.ai.embeddings import gen_groups_embeddings, DEFAULT_EMBEDDING_MODEL, EmbeddingGroup
+from polarsen.ai.embeddings import gen_groups_embeddings, DEFAULT_EMBEDDING_MODEL, EmbeddingGroup, EmbeddingGroupAdapter
 from polarsen.common.utils import get_source_from_model, AISource
 from polarsen.db import DbChat, MessageGroup
 from polarsen.logs import logs, WorkerLoggerAdapter
@@ -144,14 +143,7 @@ async def process_chat_groups_worker(
                 raise
 
 
-class EmbeddingGroupUser(EmbeddingGroup):
-    user_id: int
-
-
-_EmbeddingGroupUserAdapter = TypeAdapter(EmbeddingGroupUser)
-
-
-async def _get_groups_not_embedded(conn: asyncpg.Connection, limit: int = 1) -> list[EmbeddingGroupUser]:
+async def _get_groups_not_embedded(conn: asyncpg.Connection, limit: int = 1) -> list[EmbeddingGroup]:
     """
     Get chat groups that do not have embeddings yet - i.e., no relation exists in ai.mistral_group_embeddings -
     and lock them for processing.
@@ -179,7 +171,7 @@ async def _get_groups_not_embedded(conn: asyncpg.Connection, limit: int = 1) -> 
         """,
         limit,
     )
-    return [_EmbeddingGroupUserAdapter.validate_python(row) for row in records]
+    return [EmbeddingGroupAdapter.validate_python(row) for row in records]
 
 
 async def process_embeddings_worker(

@@ -23,7 +23,7 @@ def handle_errors(func):
             if capture_exception is not None:
                 capture_exception(e)
             else:
-                logs.exception("Failed to load user")
+                logs.exception(f"Unhandled error in {func.__name__}", exc_info=e)
 
             if not _update_arg.effective_user:
                 logs.warning("Failed to load user")

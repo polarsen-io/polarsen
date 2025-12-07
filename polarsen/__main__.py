@@ -4,7 +4,9 @@ import os
 from piou import Cli
 
 from polarsen.logs import init_logs, logs
+from polarsen.telemetry.sentry import init_sentry
 
+init_sentry()
 
 cli = Cli("Polarsen utility commands")
 

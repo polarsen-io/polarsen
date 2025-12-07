@@ -48,7 +48,7 @@ _MESSAGES_BY_DATE = """
                            cu.username     as username,
                            cm.message      as m,
                            cm.reply_to_id  as r_id,
-                           (sent_at at time zone 'UTC') ::text as s
+                           (sent_at at time zone 'UTC')::text as s
                     from general.chat_messages cm
                              left join general.chat_users cu on cu.id = cm.chat_user_id
                     where cm.message <> ''
@@ -246,7 +246,6 @@ class ConversationSegResult(TypedDict):
 _ConversationSegResultType = TypeAdapter(ConversationSegResult)
 
 
-# @retry_conversation_segmentation(max_attempts=3, delay=2.0)
 async def apply_conversation_segmentation(
     session: AsyncSession,
     messages: Iterable[MessageLite],
