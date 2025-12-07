@@ -17,6 +17,14 @@ repos:
         files: ^polarsen/api/
         stages: [pre-commit]
         verbose: true
+      - id: update-pr-notes
+        name: Update PR with Release Notes
+        entry: bash bin/update-pr-notes.sh
+        language: system
+        pass_filenames: false
+        files: ^RELEASE_NOTES\.md$
+        stages: [pre-push]
+        verbose: true
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.14.3
     hooks:
