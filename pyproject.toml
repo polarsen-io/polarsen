@@ -1,6 +1,6 @@
 [project]
 name = "polarsen"
-version = "0.1.1-rc0"
+version = "0.1.1-rc.0"
 description = ""
 readme = "README.md"
 requires-python = ">=3.13"
@@ -129,9 +129,10 @@ exclude = ["sql*", "data*", "infra*"]
 
 
 [tool.commitizen]
-version = "0.1.1-rc0"
+version = "0.1.1-rc.0"
 name = "cz_conventional_commits"
 tag_format = "$version"
+version_scheme = "semver2"
 version_files = [
     "pyproject.toml:version"
 ]

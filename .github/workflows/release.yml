@@ -43,7 +43,6 @@ jobs:
         uses: actions/checkout@v5
         with:
           fetch-depth: 0
-          fetch-tags: true
 
       - name: Setup UV
         uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
@@ -76,31 +75,23 @@ jobs:
           git config user.email "bot@polarsen.io"
           echo "🧪 Running Commitizen bump (dry-run=${{ steps.params.outputs.dry_run }}, prerelease=${{ steps.params.outputs.prerelease }})"
 
-          PRERELEASE_FLAG=""
+          FLAGS=""
           if [[ "${{ steps.params.outputs.prerelease }}" == "true" ]]; then
-            PRERELEASE_FLAG="--prerelease rc"
+            FLAGS="$FLAGS --prerelease rc"
+          fi
+          if [[ "${{ steps.params.outputs.dry_run }}" == "true" ]]; then
+            FLAGS="$FLAGS --dry-run"
           fi
 
-          if [[ "${{ steps.params.outputs.dry_run }}" == "true" ]]; then
-            uv run cz -n cz_customize bump \
-              --yes \
-              --changelog \
-              --no-verify \
-              --version-scheme semver \
-              --template=.github/templates/CHANGELOG.md.j2 \
-              --increment ${{ steps.params.outputs.bump_level }} \
-              $PRERELEASE_FLAG \
-              --dry-run
-          else
-            uv run cz -n cz_customize bump \
-              --yes \
-              --changelog \
-              --no-verify \
-              --version-scheme semver \
-              --template=.github/templates/CHANGELOG.md.j2 \
-              --increment ${{ steps.params.outputs.bump_level }} \
-              $PRERELEASE_FLAG
+          uv run cz -n cz_customize bump \
+            --yes \
+            --changelog \
+            --no-verify \
+            --template=.github/templates/CHANGELOG.md.j2 \
+            --increment ${{ steps.params.outputs.bump_level }} \
+            $FLAGS
 
+          if [[ "${{ steps.params.outputs.dry_run }}" != "true" ]]; then
             # Update lock file after version bump
             uv lock
             git add uv.lock
