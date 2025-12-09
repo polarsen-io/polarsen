@@ -1,10 +1,10 @@
 import asyncio
+import os
 from pathlib import Path
 
 import asyncpg
 import botocore.client
 import niquests
-
 
 from polarsen.ai.conversations import v2
 from polarsen.ai.embeddings import gen_groups_embeddings, DEFAULT_EMBEDDING_MODEL, EmbeddingGroup, EmbeddingGroupAdapter
@@ -15,7 +15,8 @@ from .ingest import process_uploads
 
 __all__ = ("process_chat_worker", "process_chat_groups_worker", "process_embeddings_worker", "DEFAULT_EMBEDDING_MODEL")
 
-HEALTH_FILE = Path("/tmp/health")
+# Health file touched on each loop iteration to signal liveness (e.g., for container health checks)
+HEALTH_FILE = Path(os.environ.get("HEALTH_FILE", "/tmp/health"))
 
 
 async def process_chat_worker(
@@ -37,6 +38,7 @@ async def process_chat_worker(
             worker_log.info(f"Worker {worker_id}: starting listener")
             try:
                 while True:
+                    HEALTH_FILE.touch()
                     async with conn.transaction():
                         _chat_ids = await process_uploads(
                             client=session,
@@ -46,7 +48,6 @@ async def process_chat_worker(
                             limit=limit,
                             logger=worker_log,
                         )
-                    HEALTH_FILE.touch()
                     if not _chat_ids:
                         await asyncio.sleep(sleep_no_data)
             except KeyboardInterrupt:
@@ -105,11 +106,11 @@ async def process_chat_groups_worker(
             _processing_ids: set[int] | None = None
             try:
                 while True:
+                    HEALTH_FILE.touch()
                     async with conn.transaction():
                         _chats = await _get_chats_not_grouped(
                             conn, source=_source, limit=limit, only_with_keys=only_with_keys
                         )
-                        HEALTH_FILE.touch()
                         if not _chats:
                             worker_log.debug("No chats to process, sleeping...")
                             await asyncio.sleep(sleep_no_data)
@@ -196,9 +197,9 @@ async def process_embeddings_worker(
             _processing_ids: set[int] | None = None
             try:
                 while True:
+                    HEALTH_FILE.touch()
                     async with conn.transaction():
                         _groups = await _get_groups_not_embedded(conn, limit=chunk_size)
-                        HEALTH_FILE.touch()
                         if not _groups:
                             worker_log.debug("No groups found, sleeping...")
                             await asyncio.sleep(sleep_no_data)
