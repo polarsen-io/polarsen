@@ -4,10 +4,6 @@ on:
   push:
     tags:
       - 'v*'  # Triggered by version tags (v1.2.3) from Release workflow
-  workflow_run:
-    workflows: ["Release"]
-    types:
-      - completed
 
 env:
     REGISTRY: rg.fr-par.scw.cloud
@@ -16,8 +12,6 @@ jobs:
 
   buildx:
     runs-on: ubuntu-latest
-    # Only run on tag push or successful release
-    if: github.event_name == 'push' || (github.event.workflow_run.conclusion == 'success')
 
     steps:
 
