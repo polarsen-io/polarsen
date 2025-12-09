@@ -1,8 +1,10 @@
 import asyncio
+from pathlib import Path
 
 import asyncpg
 import botocore.client
 import niquests
+
 
 from polarsen.ai.conversations import v2
 from polarsen.ai.embeddings import gen_groups_embeddings, DEFAULT_EMBEDDING_MODEL, EmbeddingGroup, EmbeddingGroupAdapter
@@ -12,6 +14,8 @@ from polarsen.logs import logs, WorkerLoggerAdapter
 from .ingest import process_uploads
 
 __all__ = ("process_chat_worker", "process_chat_groups_worker", "process_embeddings_worker", "DEFAULT_EMBEDDING_MODEL")
+
+HEALTH_FILE = Path("/tmp/health")
 
 
 async def process_chat_worker(
@@ -42,6 +46,7 @@ async def process_chat_worker(
                             limit=limit,
                             logger=worker_log,
                         )
+                    HEALTH_FILE.touch()
                     if not _chat_ids:
                         await asyncio.sleep(sleep_no_data)
             except KeyboardInterrupt:
@@ -104,6 +109,7 @@ async def process_chat_groups_worker(
                         _chats = await _get_chats_not_grouped(
                             conn, source=_source, limit=limit, only_with_keys=only_with_keys
                         )
+                        HEALTH_FILE.touch()
                         if not _chats:
                             worker_log.debug("No chats to process, sleeping...")
                             await asyncio.sleep(sleep_no_data)
@@ -192,6 +198,7 @@ async def process_embeddings_worker(
                 while True:
                     async with conn.transaction():
                         _groups = await _get_groups_not_embedded(conn, limit=chunk_size)
+                        HEALTH_FILE.touch()
                         if not _groups:
                             worker_log.debug("No groups found, sleeping...")
                             await asyncio.sleep(sleep_no_data)
