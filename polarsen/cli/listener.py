@@ -1,10 +1,11 @@
 import asyncio
-import os
 from pathlib import Path
+import os
 
 import asyncpg
 import botocore.client
 import niquests
+
 
 from polarsen.ai.conversations import v2
 from polarsen.ai.embeddings import gen_groups_embeddings, DEFAULT_EMBEDDING_MODEL, EmbeddingGroup, EmbeddingGroupAdapter
