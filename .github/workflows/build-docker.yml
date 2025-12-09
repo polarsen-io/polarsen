@@ -3,7 +3,7 @@ name: Build and Push Docker Image
 on:
   push:
     tags:
-      - 'v*'  # Triggered by version tags (v1.2.3) from Release workflow
+      - '*'
 
 env:
     REGISTRY: rg.fr-par.scw.cloud
