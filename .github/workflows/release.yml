@@ -137,5 +137,4 @@ jobs:
           GH_TOKEN: ${{ secrets.POLARSEN_BOT_PAT }}
         run: |
           gh workflow run build-docker.yml \
-            --ref "v${{ steps.get_version.outputs.version }}" \
-            -f tag="v${{ steps.get_version.outputs.version }}"
+            --ref "v${{ steps.get_version.outputs.version }}"
