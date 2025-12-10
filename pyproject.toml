@@ -136,7 +136,7 @@ version_scheme = "semver2"
 version_files = [
     "pyproject.toml:version"
 ]
-bump_message = "chore(release): release $current_version → $new_version"
+bump_message = "chore(release): release $current_version → $new_version [skip ci]"
 
 
 [tool.commitizen.customize]

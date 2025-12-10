@@ -90,17 +90,22 @@ jobs:
             --increment ${{ steps.params.outputs.bump_level }} \
             $FLAGS
 
+          uv lock
           if [[ "${{ steps.params.outputs.dry_run }}" != "true" ]]; then
+            # Update lock file after version bump and amend the commit
+            git add uv.lock
+
             # Generate changelog only for final releases (not prereleases)
             if [[ "${{ steps.params.outputs.prerelease }}" != "true" ]]; then
               uv run cz -n cz_customize changelog --template=.github/templates/CHANGELOG.md.j2
               git add CHANGELOG.md
             fi
 
-            # Update lock file after version bump
-            uv lock
-            git add uv.lock
             git commit --amend --no-edit --no-verify
+
+            # Recreate tag to point to amended commit
+            VERSION=$(uv run cz version --project)
+            git tag -f "v$VERSION"
           fi
 
       - name: 🧾 Get new version
