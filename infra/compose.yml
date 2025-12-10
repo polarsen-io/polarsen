@@ -3,9 +3,9 @@ name: polarsen-dev
 
 volumes:
   db-data:
-    name: polarsen_db
+    name: polarsen_db_dev
   s3-data:
-    name: polarsen_s3
+    name: polarsen_s3_dev
 
 
 services:

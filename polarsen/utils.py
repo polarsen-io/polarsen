@@ -1,15 +1,21 @@
 import hashlib
 from typing import AsyncIterator
+from urllib.parse import urlparse
 
 from piou import Option, Password
 
-from .env import PG_HOST, PG_PORT, PG_USER, PG_PASSWORD, PG_DATABASE
+from .env import PG_HOST, PG_PORT, PG_USER, PG_PASSWORD, PG_DATABASE, PG_DSN
 
-PgHost = Option(PG_HOST, "--host", help="PG Host")
-PgPort = Option(PG_PORT, "--port", help="PG Port")
-PgUser = Option(PG_USER, "--pg-user", help="PG User")
-PgPassword = Option(PG_PASSWORD, "-p", help="PG Password")
-PgDatabase = Option(PG_DATABASE, "--db", help="PG Database")
+# Parse PG_DSN if set, to use as defaults for individual options
+_pg_dsn_parsed = urlparse(PG_DSN) if PG_DSN else None
+
+PgHost = Option(_pg_dsn_parsed.hostname or PG_HOST if _pg_dsn_parsed else PG_HOST, "--host", help="PG Host")
+PgPort = Option(_pg_dsn_parsed.port or PG_PORT if _pg_dsn_parsed else PG_PORT, "--port", help="PG Port")
+PgUser = Option(_pg_dsn_parsed.username or PG_USER if _pg_dsn_parsed else PG_USER, "--pg-user", help="PG User")
+PgPassword = Option(_pg_dsn_parsed.password or PG_PASSWORD if _pg_dsn_parsed else PG_PASSWORD, "-p", help="PG Password")
+PgDatabase = Option(
+    _pg_dsn_parsed.path.lstrip("/") or PG_DATABASE if _pg_dsn_parsed else PG_DATABASE, "--db", help="PG Database"
+)
 
 
 def get_pg_url(
