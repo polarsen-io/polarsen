@@ -115,7 +115,7 @@ jobs:
         run: |
           branch=$(git rev-parse --abbrev-ref HEAD)
           echo "Pushing changes and tags to branch: $branch"
-          git push origin "$branch" --follow-tags
+          git push origin "$branch" && git push origin --tags
 
       - name: Generate GitHub Release
         if: steps.params.outputs.dry_run != 'true'
