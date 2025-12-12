@@ -43,6 +43,7 @@ class User:
     selected_model: str | None = None
     state: UserState = UserState.NORMAL
     last_question: LastQuestion | None = None
+    pending_question: str | None = None  # Question to ask after API key is set
 
     @property
     def selected_chat_name(self) -> str | None:

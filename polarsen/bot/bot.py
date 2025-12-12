@@ -14,6 +14,7 @@ from telegram import (
     InlineKeyboardMarkup,
     MaybeInaccessibleMessage,
     Message,
+    BotCommand,
 )
 from telegram.ext import (
     ApplicationBuilder,
@@ -27,7 +28,7 @@ from telegram.ext import (
 from polarsen.logs import logs
 from .data import User, UserState, ask_question, give_feedback, upload_chat
 from .env import API_URI
-from .intl import TranslateFn
+from .intl import TranslateFn, i18n
 from .models import Chat, ChatUpload
 from .models import EmbeddingResult
 from .utils import handle_errors
@@ -86,15 +87,14 @@ async def handle_message(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
         user.api_keys[user.selected_model_source] = msg
         user.state = UserState.NORMAL
         await update.message.reply_text(user.t("api_key_saved").format(source=user.selected_model_source.title()))
+        # If there's a pending question, ask it now
+        if user.pending_question:
+            pending = user.pending_question
+            user.pending_question = None
+            await _ask_and_respond(user, pending, update.message)
         return
     elif msg == user.t("list_chats_btn"):
-        if not user.chats and not user.uploads:
-            await update.message.reply_text(user.t("no_chats"))
-            return
-        html = fmt_chats(chats=user.chats, uploads=user.uploads, t=user.t)
-        if html is None:
-            return
-        await update.message.reply_html(html)
+        await _list_chats(user, update.message)
     elif msg == user.t("select_chats_btn"):
         resp, keyboard = await _select_chat(user)
         await update.message.reply_text(resp, reply_markup=keyboard)
@@ -114,44 +114,13 @@ async def handle_message(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
             await update.message.reply_text(user.t("no_model_selected"))
             return
         if user.selected_model_api_key is None:
-            # Set user state to awaiting API key and ask for it
+            # Store the question and ask for API key
+            user.pending_question = msg
             resp, reply_keyboard = _ask_api_key(user)
             await update.message.reply_text(resp, reply_markup=reply_keyboard)
             return
 
-        if user.id is None:
-            raise ValueError("User ID is not set. Please load the user from the database.")
-        logs.debug(f"User {user.id} is asking question {msg}")
-        resp = await ask_question(
-            chat_id=user.selected_chat_id,
-            model=user.selected_model,
-            api_key=user.selected_model_api_key,
-            question=msg,
-            user_id=user.id,
-        )
-        response = resp["response"]
-        question_id = resp["question_id"]
-        user.set_last_question(question_id=question_id, results=resp["results"], response=response)
-        feedback_prefix = f"{CallbackPrefix.feedback.value}{question_id}"
-        keyboard = [
-            [
-                InlineKeyboardButton(
-                    user.t("show_question_context_btn"), callback_data=CallbackPrefix.show_context.value
-                ),
-            ],
-            [
-                InlineKeyboardButton(user.t("feedback_ok_btn"), callback_data=f"{feedback_prefix}-ok"),
-                InlineKeyboardButton(user.t("feedback_ko_btn"), callback_data=f"{feedback_prefix}-ko"),
-            ],
-            [
-                InlineKeyboardButton(
-                    user.t("feedback_do_not_know_btn"), callback_data=f"{feedback_prefix}-do_not_know"
-                ),
-            ],
-        ]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-
-        await update.message.reply_html(response, reply_markup=reply_markup)
+        await _ask_and_respond(user, msg, update.message)
     else:
         await update.message.reply_text(user.t("unknown_command"))
 
@@ -185,11 +154,13 @@ async def handle_file_upload(update: Update, _: ContextTypes.DEFAULT_TYPE) -> No
                 user.t("upload_chat_error") + user.t("error_detail").format(detail=e.message)
             )
             return
+
+        # Send a processing message before the upload starts
+        await update.message.reply_text(user.t("chat_uploading").format(chat_name=document.file_name))
+
         url = file._get_encoded_url()
         await upload_chat(url, filename=document.file_name, mime_type=document.mime_type, user_id=user.id)
 
-        # Handle chat upload logic here
-        # For now, just acknowledge the upload
         user.state = UserState.NORMAL
         await update.message.reply_text(user.t("chat_uploaded").format(chat_name=document.file_name))
         return
@@ -241,10 +212,7 @@ async def list_chats_handler(update: Update, _: ContextTypes.DEFAULT_TYPE) -> No
     if not update.message:
         return
     user = await User.load_user(update.effective_user)
-    msg = fmt_chats(chats=user.chats, uploads=user.uploads, t=user.t)
-    if msg is None:
-        return
-    await update.message.reply_html(msg)
+    await _list_chats(user, update.message)
 
 
 @handle_errors
@@ -273,6 +241,41 @@ async def upload_chat_handler(update: Update, _: ContextTypes.DEFAULT_TYPE) -> N
     keyboard = [[InlineKeyboardButton(user.t("cancel_btn"), callback_data="cancel")]]
     reply_markup = InlineKeyboardMarkup(keyboard)
     await update.message.reply_text(user.t("upload_chat"), reply_markup=reply_markup)
+
+
+@handle_errors
+async def ask_handler(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle the /ask command. Usage: /ask <question>"""
+    if not update.effective_user:
+        return
+    if not update.message:
+        return
+    user = await User.load_user(update.effective_user)
+
+    # Extract question from command (everything after /ask)
+    if not update.message.text:
+        return
+    parts = update.message.text.split(maxsplit=1)
+    if len(parts) < 2 or not parts[1].strip():
+        await update.message.reply_text(user.t("ask_usage"))
+        return
+    question = parts[1].strip()
+
+    # Check prerequisites
+    if user.selected_chat_id is None:
+        await update.message.reply_text(user.t("no_chat_selected"))
+        return
+    if user.selected_model is None:
+        await update.message.reply_text(user.t("no_model_selected"))
+        return
+    if user.selected_model_api_key is None:
+        # Store the question and ask for API key
+        user.pending_question = question
+        resp, reply_keyboard = _ask_api_key(user)
+        await update.message.reply_text(resp, reply_markup=reply_keyboard)
+        return
+
+    await _ask_and_respond(user, question, update.message)
 
 
 async def handle_callback_queries(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
@@ -338,6 +341,56 @@ def _is_accessible_message(message: MaybeInaccessibleMessage | None) -> TypeGuar
     if message is None:
         return False
     return message.is_accessible
+
+
+async def _list_chats(user: User, message: Message) -> None:
+    """Send the list of chats to the user. Used by both /list_chats and 'View groups' button."""
+    if not user.chats and not user.uploads:
+        await message.reply_text(user.t("no_chats"))
+        return
+    html = fmt_chats(chats=user.chats, uploads=user.uploads, t=user.t)
+    if html is None:
+        return
+    await message.reply_html(html)
+
+
+async def _ask_and_respond(user: User, question: str, message: Message) -> None:
+    """Ask a question and send the response. Used after API key is set or when asking directly."""
+    if user.id is None:
+        raise ValueError("User ID is not set. Please load the user from the database.")
+    if user.selected_chat_id is None:
+        raise ValueError("No chat selected.")
+    if user.selected_model is None:
+        raise ValueError("No model selected.")
+    if user.selected_model_api_key is None:
+        raise ValueError("No API key set.")
+
+    logs.debug(f"User {user.id} is asking question {question}")
+    resp = await ask_question(
+        chat_id=user.selected_chat_id,
+        model=user.selected_model,
+        api_key=user.selected_model_api_key,
+        question=question,
+        user_id=user.id,
+    )
+    response = resp["response"]
+    question_id = resp["question_id"]
+    user.set_last_question(question_id=question_id, results=resp["results"], response=response)
+    feedback_prefix = f"{CallbackPrefix.feedback.value}{question_id}"
+    keyboard = [
+        [
+            InlineKeyboardButton(user.t("show_question_context_btn"), callback_data=CallbackPrefix.show_context.value),
+        ],
+        [
+            InlineKeyboardButton(user.t("feedback_ok_btn"), callback_data=f"{feedback_prefix}-ok"),
+            InlineKeyboardButton(user.t("feedback_ko_btn"), callback_data=f"{feedback_prefix}-ko"),
+        ],
+        [
+            InlineKeyboardButton(user.t("feedback_do_not_know_btn"), callback_data=f"{feedback_prefix}-do_not_know"),
+        ],
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await message.reply_html(response, reply_markup=reply_markup)
 
 
 def fmt_chats(chats: list[Chat], uploads: list[ChatUpload], t: TranslateFn) -> str | None:
@@ -437,15 +490,8 @@ def _ask_api_key(user: User) -> tuple[str, InlineKeyboardMarkup]:
     return user.t("enter_api_key").format(source=user.selected_model_source.title()), reply_markup
 
 
-_COMMANDS = {
-    "start": "Start the bot",
-    "help": "Show help message",
-    "stop": "Stop the bot",
-    "select_chats": "Select a chat",
-    "list_chats": "List all chats",
-    "select_ai": "Select an AI model",
-    "add_chat": "Add a new chat",
-}
+# Command names used for validation (descriptions come from commands_i18n)
+_COMMAND_NAMES = {"start", "help", "stop", "select_chats", "list_chats", "select_ai", "add_chat", "ask"}
 
 
 async def wait_forever():
@@ -468,20 +514,31 @@ async def run_bot(token: str, shutdown_event: asyncio.Event) -> None:
         CommandHandler(["list_chats"], list_chats_handler),
         CommandHandler(["select_ai"], select_ai_handler),
         CommandHandler(["add_chat"], upload_chat_handler),
+        CommandHandler(["ask"], ask_handler),
         CallbackQueryHandler(handle_callback_queries),
         MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message),
         MessageHandler(filters.Document.MimeType("application/json"), handle_file_upload),  # Handle document uploads
     ]
     for handler in handlers:
         if isinstance(handler, CommandHandler):
-            if not (handler.commands & _COMMANDS.keys()):
-                raise ValueError(f"Could not find command {handler.commands} in _COMMANDS")
+            if not (handler.commands & _COMMAND_NAMES):
+                raise ValueError(f"Could not find command {handler.commands} in _COMMAND_NAMES")
 
     for _handler in handlers:
         app.add_handler(_handler)
     logs.info("Initializing bot")
     # Run application and webserver together
     async with app:
+        # Set commands for each supported language
+        for lang in i18n.languages:
+            commands = i18n.get_commands(lang)
+            bot_commands = [BotCommand(cmd, desc) for cmd, desc in commands.items()]
+            if lang == "en":
+                # English is the default (no language_code)
+                await app.bot.set_my_commands(bot_commands)
+            else:
+                await app.bot.set_my_commands(bot_commands, language_code=lang)
+            logs.debug(f"Set commands for language: {lang}")
         await app.bot.set_chat_menu_button(menu_button=MENU_BTN)
         if app.updater is None:
             raise ValueError("Application updater is not initialized")
@@ -502,8 +559,9 @@ async def run_bot(token: str, shutdown_event: asyncio.Event) -> None:
             logs.info("Bot stopped")
 
 
-def show_commands():
+def show_commands(lang: str = "en"):
     """
-    Show the available commands for the bot.
+    Show the available commands for the bot in the specified language.
     """
-    print("\n".join(f"{cmd} - {desc}" for cmd, desc in _COMMANDS.items()))
+    commands = i18n.get_commands(lang)
+    print("\n".join(f"{cmd} - {desc}" for cmd, desc in commands.items()))
