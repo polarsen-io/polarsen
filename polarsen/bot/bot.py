@@ -296,9 +296,12 @@ async def handle_callback_queries(update: Update, _: ContextTypes.DEFAULT_TYPE) 
     # Handle Show Context
     elif query.data == CallbackPrefix.show_context.value:
         if _is_accessible_message(query.message) and user.last_question is not None:
-            await query.message.reply_html(_fmt_summaries(user.last_question["results"]))
+            await query.message.reply_html(_fmt_summaries(user.last_question["results"], user.t))
+        elif _is_accessible_message(query.message):
+            logs.warning("Last question is None, cannot show context.")
+            await query.message.reply_text(user.t("no_context_available"))
         else:
-            logs.warning("Query message is not accessible or last question is None, cannot show context.")
+            logs.warning("Query message is not accessible, cannot show context.")
     # Giving a feedback
     elif query.data.startswith(CallbackPrefix.feedback.value):
         feedback = query.data.lstrip(CallbackPrefix.feedback.value)
@@ -338,6 +341,11 @@ async def handle_callback_queries(update: Update, _: ContextTypes.DEFAULT_TYPE) 
 
 
 def _is_accessible_message(message: MaybeInaccessibleMessage | None) -> TypeGuard[Message]:
+    """Check if a message is accessible and narrow its type to Message.
+
+    Telegram messages may become inaccessible (e.g., deleted or in restricted chats).
+    This type guard filters out None and inaccessible messages for safe handling.
+    """
     if message is None:
         return False
     return message.is_accessible
@@ -369,7 +377,6 @@ async def _ask_and_respond(user: User, question: str, message: Message) -> None:
     resp = await ask_question(
         chat_id=user.selected_chat_id,
         model=user.selected_model,
-        api_key=user.selected_model_api_key,
         question=question,
         user_id=user.id,
     )
@@ -435,13 +442,16 @@ def fmt_chats(chats: list[Chat], uploads: list[ChatUpload], t: TranslateFn) -> s
     return _final_msg if _final_msg else None
 
 
-def _fmt_summaries(summaries: list[EmbeddingResult]) -> str:
+def _fmt_summaries(summaries: list[EmbeddingResult], t: TranslateFn) -> str:
+    """Format embedding search results for display.
+
+    Returns a translated message with context results, or a 'no context available'
+    message when summaries list is empty.
+    """
     if not summaries:
-        return ""
-    return "\n\n" + textwrap.dedent("""
-    <b>Context results:</b>
-    {}
-    """).format("\n".join(["\n\n <b>{title}</b> ({day})\n{summary}".format(**s) for s in summaries]))
+        return t("no_context_available")
+    formatted = "\n".join(["\n\n<b>{title}</b> ({day})\n{summary}".format(**s) for s in summaries])
+    return f"\n\n{t('context_results_header')}\n{formatted}"
 
 
 class CallbackPrefix(Enum):
