@@ -162,7 +162,7 @@ services:
       args:
         PROJECT_MODE: "cli"
     restart: unless-stopped
-    command: [ "-vv", "chat", "listen-segmentation" ]
+    command: [ "-vv", "chat", "listen-segmentation", "--debug" ]
     environment:
       - NB_WORKERS=${NB_WORKERS:-1}
       - PG_HOST=db
