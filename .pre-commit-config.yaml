@@ -14,7 +14,7 @@ repos:
         language: system
         pass_filenames: false
         # Run only when files in polarsen/api/ change
-        files: ^polarsen/api/
+        files: ^polarsen/api/(main|models)/.*\.py$
         stages: [pre-commit]
         verbose: true
       - id: update-pr-notes

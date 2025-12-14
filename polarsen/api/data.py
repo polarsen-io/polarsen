@@ -5,6 +5,7 @@ import asyncpg
 import bcrypt
 from tracktolib.pg import insert_returning, insert_many
 
+from polarsen.common.utils import AISource
 from polarsen.logs import logs
 
 
@@ -129,6 +130,21 @@ class User:
         if username is None:
             raise ValueError(f"No chat user found for chat_id {chat_id!r} and user_id {user_id!r}")
         return username
+
+    @staticmethod
+    async def get_api_keys(conn: asyncpg.Connection, user_id: int) -> dict[AISource, str] | None:
+        """
+        Get the API key for a given source for the user.
+        """
+        api_keys = await conn.fetchval(
+            """
+            SELECT api_keys
+            FROM general.users
+            WHERE id = $1
+            """,
+            user_id,
+        )
+        return api_keys
 
 
 @dataclass
