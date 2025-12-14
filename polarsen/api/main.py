@@ -122,7 +122,7 @@ CHAT_TAG = "chat"
     "/chats/{chat_id}/ask",
     tags=[CHAT_TAG],
     responses={
-        status.HTTP_422_UNPROCESSABLE_ENTITY: {"description": "API key for the specified model is missing"},
+        status.HTTP_422_UNPROCESSABLE_CONTENT: {"description": "API key for the specified model is missing"},
     },
 )
 async def _ask_question(

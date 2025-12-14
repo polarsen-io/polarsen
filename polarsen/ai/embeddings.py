@@ -29,6 +29,7 @@ class EmbeddingGroup(TypedDict):
     summary: str
     messages: list[str]
     user_id: int
+    api_key: NotRequired[str | None]
     day: NotRequired[dt.date]
 
 
@@ -86,22 +87,26 @@ async def gen_groups_embeddings(
     model_name: str = DEFAULT_EMBEDDING_MODEL,
 ):
     """Bulk generate embeddings for a given group and save them to the database."""
-    source, _, _ = setup_session_model(session=session, model_name=model_name)
-
     # We want to group calls by user to make sure the tracking of tokens is correct
+    # and each user's API key is used
     for user_id, user_groups in itertools.groupby(groups, key=lambda g: g["user_id"]):
-        all_inputs = [_get_embed_input_from_group(group) for group in user_groups]
+        user_groups_list = list(user_groups)
+        # Get API key from first group (all groups for same user have same key)
+        api_key = user_groups_list[0].get("api_key") if user_groups_list else None
+        source, _, _ = setup_session_model(session=session, model_name=model_name, api_key=api_key)
+
+        all_inputs = [_get_embed_input_from_group(group) for group in user_groups_list]
         if source == "mistral":
             embeddings, tokens = await mistral.fetch_embeddings(session, inputs=all_inputs)
-            if len(groups) != len(embeddings):
+            if len(user_groups_list) != len(embeddings):
                 raise ValueError(
                     f"Number of embeddings {len(embeddings)} does not match number of groups {len(all_inputs)}"
                 )
-            embeddings = [
+            embedding_records = [
                 MistralGroupEmbeddings(group_id=group["id"], embedding=embedding)
-                for group, embedding in zip(groups, embeddings)
+                for group, embedding in zip(user_groups_list, embeddings)
             ]
-            await MistralGroupEmbeddings.bulk_save(conn, embeddings=embeddings)
+            await MistralGroupEmbeddings.bulk_save(conn, embeddings=embedding_records)
         else:
             raise ValueError(
                 f"Source {source!r} (model: {model_name!r}) is not yet supported for embeddings generation"
