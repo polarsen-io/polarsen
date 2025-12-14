@@ -16,11 +16,15 @@ from http import HTTPStatus
 __all__ = ("fetch_completion", "set_headers")
 
 
-def set_headers(session: niquests.Session, api_key: str | None = None) -> None:
+HEADER_KEY = "x-goog-api-key"
+
+
+def set_headers(session: niquests.Session, api_key: str | None = None) -> str:
     _api_key = api_key or GEMINI_API_KEY
     if _api_key is None:
         raise ValueError("GEMINI_API_KEY is not set")
-    session.headers["x-goog-api-key"] = _api_key
+    session.headers[HEADER_KEY] = _api_key
+    return HEADER_KEY
 
 
 def _check_resp(resp: niquests.Response) -> dict:

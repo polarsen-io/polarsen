@@ -1,13 +1,16 @@
 import datetime as dt
-from typing import TypedDict
+from typing import TypedDict, Callable, Awaitable
 
 import asyncpg
 import pydantic
 from niquests import AsyncSession
 
+from polarsen.db import UsageToken
 from .models import mistral
 
-_EMBEDDINGS_FNS = {"mistral": mistral.fetch_embeddings}
+type EmbeddingsFn = Callable[[AsyncSession, str | list[str]], Awaitable[tuple[list[list[float]], UsageToken]]]
+
+_EMBEDDINGS_FNS: dict[str, EmbeddingsFn] = {"mistral": mistral.fetch_embeddings}
 
 _SEARCH_EMBEDDINGS_QUERY = """
                            select group_id,
@@ -17,7 +20,7 @@ _SEARCH_EMBEDDINGS_QUERY = """
                                   (g.meta ->> 'day')::date as day,
                                   _messages.messages
                            from ai.mistral_group_embeddings
-                                    left join ai.message_group g on g.id = group_id
+                                    left join ai.message_groups g on g.id = group_id
                                     left join lateral (
                                select jsonb_agg(
                                               jsonb_build_object(
@@ -93,6 +96,8 @@ async def search_close_messages(
     limit: int = 3,
 ) -> list[CloseEmbedding]:
     embeddings_fn = _EMBEDDINGS_FNS[model_name]
-    embedding, nb_tokens = await embeddings_fn(session, question)
+    embeddings, nb_tokens = await embeddings_fn(session, question)
+    # fetch_embeddings returns list[list[float]], extract the first embedding
+    embedding = embeddings[0]
     results = await conn.fetch(_SEARCH_EMBEDDINGS_QUERY, embedding, limit, chat_id)
     return [_CloseEmbeddingType.validate_python(dict(x)) for x in results]

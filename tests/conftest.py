@@ -6,6 +6,8 @@ from minio import Minio
 import asyncio
 import asyncpg
 
+from polarsen.pg import init_connection
+
 os.environ["PG_DATABASE"] = "polarsen_test"
 os.environ["PG_HOST"] = os.getenv("PG_HOST", "localhost")
 os.environ["PG_USER"] = os.getenv("PG_USER", "postgres")
@@ -61,6 +63,7 @@ def aengine(loop):
             port=5432,
         )
     )
+    loop.run_until_complete(init_connection(conn))
     try:
         yield conn
     finally:
