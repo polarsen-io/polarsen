@@ -116,6 +116,7 @@ async def handle_message(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
         if user.selected_model_api_key is None:
             # Store the question and ask for API key
             user.pending_question = msg
+            await user.save()
             resp, reply_keyboard = _ask_api_key(user)
             await update.message.reply_text(resp, reply_markup=reply_keyboard)
             return
@@ -271,6 +272,7 @@ async def ask_handler(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
     if user.selected_model_api_key is None:
         # Store the question and ask for API key
         user.pending_question = question
+        await user.save()
         resp, reply_keyboard = _ask_api_key(user)
         await update.message.reply_text(resp, reply_markup=reply_keyboard)
         return
@@ -304,7 +306,7 @@ async def handle_callback_queries(update: Update, _: ContextTypes.DEFAULT_TYPE) 
             logs.warning("Query message is not accessible, cannot show context.")
     # Giving a feedback
     elif query.data.startswith(CallbackPrefix.feedback.value):
-        feedback = query.data.lstrip(CallbackPrefix.feedback.value)
+        feedback = query.data.removeprefix(CallbackPrefix.feedback.value)
         question_id, feedback = feedback.split("-")
         await give_feedback(
             question_id=int(question_id),
@@ -331,7 +333,7 @@ async def handle_callback_queries(update: Update, _: ContextTypes.DEFAULT_TYPE) 
             else:
                 logs.warning("Query message is not accessible, cannot reply with API key request.")
     elif query.data.startswith(CallbackPrefix.chat.value):
-        selected_chat_id = int(query.data.lstrip(CallbackPrefix.chat.value))
+        selected_chat_id = int(query.data.removeprefix(CallbackPrefix.chat.value))
         user.selected_chat_id = selected_chat_id
         await query.edit_message_text(text=user.t("selected_chat").format(chat=user.selected_chat_name))
         await user.save()
@@ -383,6 +385,7 @@ async def _ask_and_respond(user: User, question: str, message: Message) -> None:
     response = resp["response"]
     question_id = resp["question_id"]
     user.set_last_question(question_id=question_id, results=resp["results"], response=response)
+    await user.save()
     feedback_prefix = f"{CallbackPrefix.feedback.value}{question_id}"
     keyboard = [
         [

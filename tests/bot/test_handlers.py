@@ -3,7 +3,6 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from telegram import Update, User as TgUser, Message
-from telegram.ext import ContextTypes
 
 from polarsen.bot import bot as bot_module
 from polarsen.bot.bot import (
@@ -52,7 +51,7 @@ def mock_update(tg_user, mock_message):
 @pytest.fixture
 def mock_context():
     """Create a mock context."""
-    return MagicMock(spec=ContextTypes.DEFAULT_TYPE)
+    return MagicMock()
 
 
 @pytest.fixture

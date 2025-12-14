@@ -145,7 +145,7 @@ async def _ask_question(
 
     api_keys = await UserDB.get_api_keys(conn, user_id=user_id)
     chat_session = ChatSession.get_session(model_name=model, api_keys=api_keys)
-    if api_keys is None:
+    if not api_keys:
         raise APIException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             reason=f"API key for model {model!r} not found for user {user_id!r}",

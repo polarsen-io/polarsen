@@ -100,7 +100,7 @@ async def gen_groups_embeddings(
             embeddings, tokens = await mistral.fetch_embeddings(session, inputs=all_inputs)
             if len(user_groups_list) != len(embeddings):
                 raise ValueError(
-                    f"Number of embeddings {len(embeddings)} does not match number of groups {len(all_inputs)}"
+                    f"Number of embeddings {len(embeddings)} does not match number of groups {len(user_groups_list)}"
                 )
             embedding_records = [
                 MistralGroupEmbeddings(group_id=group["id"], embedding=embedding)

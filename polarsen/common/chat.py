@@ -90,12 +90,12 @@ class ChatSession:
         """Return the RAG API key for fetching close messages."""
         api_key = self.api_keys.get(self.rag_model_name)
         if not api_key:
-            logs.info("")
+            logs.warning("No RAG API key set, using default MISTRAL_API_KEY from environment")
             return env.MISTRAL_API_KEY or ""
         return api_key
 
     @property
-    def intput_token_count(self) -> int:
+    def input_token_count(self) -> int:
         """Return the total number of input tokens used."""
         return self._input_token_count
 
