@@ -1,5 +1,4 @@
 import json
-import logging
 
 import asyncpg
 import botocore.client
@@ -43,22 +42,20 @@ async def process_uploads(
     *,
     show_progress: bool = False,
     limit: int = 10_000,
-    logger: None | logging.LoggerAdapter = None,
 ) -> list[int]:
     """
     Process pending chat uploads from S3 and ingest them into the database.
     Will mark uploads as processed once done.
     Returns the list of chat IDs that were processed.
     """
-    _logs = logger or logs
     bucket = env.CHAT_UPLOADS_S3_BUCKET
     if not bucket:
         raise ValueError("CHAT_UPLOADS_S3_BUCKET must be set")
     pending_uploads = await fetch_pending_uploads(conn, limit=limit)
     if not pending_uploads:
-        _logs.debug("No pending chat uploads to process.")
+        logs.debug("No pending chat uploads to process.")
         return []
-    _logs.info(f"Found {len(pending_uploads)} pending chat uploads to process.")
+    logs.info(f"Found {len(pending_uploads)} pending chat uploads to process.")
 
     chat_ids = []
     for _upload in track(pending_uploads, disable=not show_progress, show_speed=True, description="Uploads..."):
@@ -67,11 +64,11 @@ async def process_uploads(
         chat_source = _upload["chat_source"]
         uploaded_by = _upload["uploaded_by"]
 
-        _logs.debug(f"Processing chat upload {upload_id=} {file_path=} {chat_source=}")
+        logs.debug(f"Processing chat upload {upload_id=} {file_path=} {chat_source=}")
 
         file_data = await s3_get_object(s3=s3_client, client=client, bucket=bucket, key=file_path)
         if file_data is None:
-            _logs.error(f"Failed to fetch file {file_path!r} from S3 for chat upload {upload_id}. Skipping.")
+            logs.error(f"Failed to fetch file {file_path!r} from S3 for chat upload {upload_id}. Skipping.")
             continue
 
         match chat_source:

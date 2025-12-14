@@ -8,7 +8,8 @@ from fastapi import FastAPI, Depends, Query, Request
 from fastapi.responses import JSONResponse
 from starlette import status
 
-from polarsen.common.chat import ChatSession, set_auth_headers
+import polarsen
+from polarsen.common.chat import ChatSession
 from polarsen.logs import logs
 from polarsen.s3_utils import s3_file_upload, s3_delete_object
 from polarsen.utils import compute_md5
@@ -19,8 +20,7 @@ from .dependencies import connect_pg, get_conn, get_client, get_s3_client
 from .models import NewUser, User, AIModel, AskQuestion, EmbeddingResult, Status, ChatUpload, ChatType
 from .utils import APIException, get_user, ErrorCode
 
-
-VERSION = "0.1.0"
+VERSION = polarsen.__version__
 
 
 # See: https://github.com/pydantic/pydantic/issues/9406#issuecomment-2104224328
@@ -41,11 +41,13 @@ app = FastAPI(
 
 @app.get("/version")
 def read_root():
+    """Return the current API version."""
     return {"version": VERSION}
 
 
 @app.get("/health")
 def health_check():
+    """Health check endpoint for monitoring and load balancers."""
     return {"status": "ok"}
 
 
@@ -54,7 +56,12 @@ USER_TAG = "user"
 
 @app.post("/users", tags=[USER_TAG])
 async def _create_user(user: NewUser, conn=Depends(get_conn)) -> User:
-    """Create a new user."""
+    """
+    Create or update a user.
+
+    If a user with the same telegram_id already exists, their information will be updated.
+    The user is automatically linked to any existing Telegram chats they belong to.
+    """
     async with conn.transaction():
         user_id = await UserDB.upsert(
             conn,
@@ -72,7 +79,11 @@ async def _create_user(user: NewUser, conn=Depends(get_conn)) -> User:
 
 @app.post("/users/bulk", tags=[USER_TAG])
 async def _create_users(users: list[NewUser], conn=Depends(get_conn)) -> Status:
-    """Create a new user."""
+    """
+    Create or update multiple users in a single transaction.
+
+    Each user is upserted individually. If a user already exists, their information is updated.
+    """
     async with conn.transaction():
         # TODO: optimize this to use a single query
         for user in users:
@@ -92,7 +103,11 @@ async def _get_user(
     telegram_id: str | None = Query(None, description="Telegram user ID in the format 'user{telegram_id}'"),
     conn=Depends(get_conn),
 ) -> User | None:
-    """Create a new user."""
+    """
+    Retrieve a user by their Telegram ID.
+
+    Returns the user's profile information including their selected model and chat preferences.
+    """
     if telegram_id is None:
         raise
 
@@ -103,23 +118,43 @@ async def _get_user(
 CHAT_TAG = "chat"
 
 
-@app.get("/chats/{chat_id}/ask", tags=[CHAT_TAG])
+@app.get(
+    "/chats/{chat_id}/ask",
+    tags=[CHAT_TAG],
+    responses={
+        status.HTTP_422_UNPROCESSABLE_CONTENT: {"description": "API key for the specified model is missing"},
+    },
+)
 async def _ask_question(
     chat_id: int,
-    api_key: str,
     question: str,
     user_id: int,
     model: str,
     conn=Depends(get_conn),
     session=Depends(get_client),
 ) -> AskQuestion:
-    """Ask a question regarding a chat."""
-    chat_sessions = ChatSession.get_session(model_name=model, api_key=api_key, rag_api_key=env.MISTRAL_API_KEY or "")
+    """
+    Ask a question about a chat's content using RAG (Retrieval-Augmented Generation).
+
+    Searches for relevant messages in the chat history and uses the specified AI model
+    to generate an answer based on the retrieved context. The question and response
+    are saved for feedback tracking.
+    """
+
     chat_username = await UserDB.get_telegram_chat_username(conn, chat_id, user_id)
-    with set_auth_headers(session, api_key):
-        resp, debug = await chat_sessions.ask_rag(
-            conn=conn, chat_id=chat_id, session=session, question=question, user=chat_username, limit=3
+
+    api_keys = await UserDB.get_api_keys(conn, user_id=user_id)
+    chat_session = ChatSession.get_session(model_name=model, api_keys=api_keys)
+    if not api_keys:
+        raise APIException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            reason=f"API key for model {model!r} not found for user {user_id!r}",
+            error_code=ErrorCode.missing_api_key,
         )
+
+    resp, debug = await chat_session.ask_rag(
+        conn=conn, chat_id=chat_id, session=session, question=question, user=chat_username, limit=3
+    )
     meta = await conn.fetchval("SELECT meta FROM general.users WHERE id = $1", user_id)
     _question = QuestionDB(
         question=question,
@@ -140,7 +175,15 @@ async def _ask_question(
     return AskQuestion(response=resp, results=results, question_id=question_id)
 
 
-@app.post("/chats/upload", tags=[CHAT_TAG])
+@app.post(
+    "/chats/upload",
+    tags=[CHAT_TAG],
+    responses={
+        status.HTTP_400_BAD_REQUEST: {"description": "Invalid chat_type provided"},
+        status.HTTP_409_CONFLICT: {"description": "File with the same name was already uploaded by this user"},
+        status.HTTP_411_LENGTH_REQUIRED: {"description": "Missing X-Content-Length header"},
+    },
+)
 async def _upload_chat(
     request: Request,
     user_id: int,
@@ -151,7 +194,12 @@ async def _upload_chat(
     s3=Depends(get_s3_client),
     session=Depends(get_client),
 ) -> ChatUpload:
-    """Upload a chat file."""
+    """
+    Upload a chat export file for processing.
+
+    The file is streamed directly to S3 storage and registered in the database.
+    Requires the `X-Content-Length` header to be set with the file size.
+    """
     # TODO: Fix that later and use Content-Length
     _content_length = request.headers.get("X-Content-Length")
     if _content_length is None:
@@ -235,7 +283,11 @@ async def _upload_chat(
 
 @app.patch("/questions/{question_id}", tags=[CHAT_TAG])
 async def _update_question(question_id: int, feedback: str, conn=Depends(get_conn)) -> Status:
-    """Update a question with feedback."""
+    """
+    Submit feedback for a previously asked question.
+
+    Used to track user satisfaction with AI-generated answers (e.g., thumbs up/down).
+    """
     await QuestionDB.update_feedback(conn, question_id, feedback)
     return Status(status="ok", message=f"Updated question {question_id} with feedback '{feedback}'.")
 
@@ -266,7 +318,11 @@ MODELS: list[AIModel] = [
 
 @app.get("/models", tags=[CHAT_TAG])
 async def _get_models() -> list[AIModel]:
-    """Get a list of available AI models."""
+    """
+    List all available AI models for question answering.
+
+    Returns models from multiple providers (Gemini, OpenAI, Mistral, Grok).
+    """
     return MODELS
 
 
@@ -283,7 +339,7 @@ async def api_exception_handler(_: Request, exc: APIException):
 
 
 @app.exception_handler(status.HTTP_500_INTERNAL_SERVER_ERROR)
-async def exception_500_handler(request: Request, exc):
+async def exception_500_handler(_: Request, __: Exception):
     return JSONResponse(
         content={"message": "Internal server error"},
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

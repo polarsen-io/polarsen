@@ -3,12 +3,20 @@ import os
 
 from piou import Cli
 
+import polarsen
 from polarsen.logs import init_logs, logs
 from polarsen.telemetry.sentry import init_sentry
 
 init_sentry()
 
 cli = Cli("Polarsen utility commands")
+
+
+@cli.command("version")
+def _version():
+    """Show version and exit."""
+    print(f"polarsen {polarsen.__version__}")
+
 
 _mode = os.getenv("PROJECT_MODE", "local").lower()
 

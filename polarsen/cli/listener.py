@@ -11,10 +11,16 @@ from polarsen.ai.conversations import v2
 from polarsen.ai.embeddings import gen_groups_embeddings, DEFAULT_EMBEDDING_MODEL, EmbeddingGroup, EmbeddingGroupAdapter
 from polarsen.common.utils import get_source_from_model, AISource
 from polarsen.db import DbChat, MessageGroup
-from polarsen.logs import logs, WorkerLoggerAdapter
+from polarsen.logs import logs, set_worker_logger
 from .ingest import process_uploads
 
-__all__ = ("process_chat_worker", "process_chat_groups_worker", "process_embeddings_worker", "DEFAULT_EMBEDDING_MODEL")
+__all__ = (
+    "process_chat_worker",
+    "process_chat_groups_worker",
+    "process_embeddings_worker",
+    "process_stuck_chats_worker",
+    "DEFAULT_EMBEDDING_MODEL",
+)
 
 # Health file touched on each loop iteration to signal liveness (e.g., for container health checks)
 HEALTH_FILE = Path(os.environ.get("HEALTH_FILE", "/tmp/health"))
@@ -32,11 +38,11 @@ async def process_chat_worker(
     This will run indefinitely, processing `limit` uploads at a time.
     If no uploads are found, it will sleep for `sleep_no_data` seconds.
     """
-    worker_log = WorkerLoggerAdapter(logs, {"worker_id": worker_id, "worker_type": "UploadWorker"})
+    set_worker_logger(worker_id, "UploadWorker")
 
     async with pool.acquire() as conn:
         async with niquests.AsyncSession() as session:
-            worker_log.info(f"Worker {worker_id}: starting listener")
+            logs.info(f"Worker {worker_id}: starting listener")
             try:
                 while True:
                     HEALTH_FILE.touch()
@@ -47,12 +53,67 @@ async def process_chat_worker(
                             s3_client=s3_client,
                             show_progress=False,
                             limit=limit,
-                            logger=worker_log,
                         )
                     if not _chat_ids:
                         await asyncio.sleep(sleep_no_data)
             except KeyboardInterrupt:
-                worker_log.debug("Received KeyboardInterrupt, exiting...")
+                logs.debug("Received KeyboardInterrupt, exiting...")
+
+
+STUCK_PROCESSING_THRESHOLD_MINUTES = 30
+
+
+async def _reset_stuck_processing_chats(
+    conn: asyncpg.Connection, threshold_minutes: int = STUCK_PROCESSING_THRESHOLD_MINUTES
+) -> int:
+    """
+    Reset chats that have been stuck in 'processing' status for longer than threshold_minutes.
+    Also resets chats without a processing_started_at timestamp (legacy stuck chats).
+    Returns the number of chats reset.
+    """
+    result = await conn.execute(
+        """
+        UPDATE general.chats
+        SET meta = meta - 'status'
+        WHERE meta ->> 'status' = 'processing'
+          AND (
+              meta ->> 'processing_started_at' IS NULL
+              OR (meta ->> 'processing_started_at')::timestamptz < NOW() - ($1 || ' minutes')::interval
+          )
+        """,
+        str(threshold_minutes),
+    )
+    # Result is like "UPDATE N"
+    count = int(result.split()[-1]) if result else 0
+    return count
+
+
+async def process_stuck_chats_worker(
+    pool: asyncpg.pool.Pool,
+    worker_id: int = 0,
+    check_interval: int = 60,  # Check every minute
+    threshold_minutes: int = STUCK_PROCESSING_THRESHOLD_MINUTES,
+    debug: bool = False,
+):
+    """
+    Worker to periodically reset chats stuck in 'processing' status.
+    Runs independently to avoid blocking the main processing workers.
+    """
+    set_worker_logger(worker_id, "StuckChatsWorker")
+    logs.info(f"Starting stuck chats worker (threshold: {threshold_minutes}min, interval: {check_interval}s)")
+
+    async with pool.acquire() as conn:
+        while True:
+            try:
+                reset_count = await _reset_stuck_processing_chats(conn, threshold_minutes)
+                if reset_count > 0:
+                    logs.info(f"Reset {reset_count} stuck chat(s)")
+            except Exception as e:
+                logs.error(f"Error resetting stuck chats: {e}")
+                if debug:
+                    raise
+
+            await asyncio.sleep(check_interval)
 
 
 async def _get_chats_not_grouped(
@@ -68,7 +129,7 @@ async def _get_chats_not_grouped(
         FROM general.chats mg
                  LEFT JOIN general.users u ON u.id = mg.created_by
         WHERE (mg.meta ->> 'status' IS NULL OR mg.meta ->> 'status' NOT IN ('processing', 'done'))
-          AND CASE WHEN $3 THEN u.api_keys ->> $2 IS NOT NULL ELSE TRUE END
+          AND CASE WHEN $3 THEN NULLIF(u.api_keys ->> $2, '') IS NOT NULL ELSE TRUE END
         ORDER BY mg.id
             FOR UPDATE OF mg SKIP LOCKED
         LIMIT $1
@@ -98,12 +159,12 @@ async def process_chat_groups_worker(
     When `only_with_keys` is True, only chats where the user has an API key for the model source will be processed.
     This is useful when no global API key is set.
     """
-    worker_log = WorkerLoggerAdapter(logs, {"worker_id": worker_id, "worker_type": "ChatGroupWorker"})
+    set_worker_logger(worker_id, "ChatGroupWorker")
     _model_name = params.get("model_name")
     _source = get_source_from_model(_model_name)
     async with pool.acquire() as conn:
         async with niquests.AsyncSession(timeout=timeout) as session:
-            worker_log.debug("Starting work loop")
+            logs.debug("Starting work loop")
             _processing_ids: set[int] | None = None
             try:
                 while True:
@@ -113,7 +174,7 @@ async def process_chat_groups_worker(
                             conn, source=_source, limit=limit, only_with_keys=only_with_keys
                         )
                         if not _chats:
-                            worker_log.debug("No chats to process, sleeping...")
+                            logs.debug("No chats to process, sleeping...")
                             await asyncio.sleep(sleep_no_data)
                             if not run_forever:
                                 break
@@ -123,7 +184,7 @@ async def process_chat_groups_worker(
                         await DbChat.set_is_processing(conn, _chat_ids)
                     for _chat in _chats:
                         _chat_id = _chat["id"]
-                        worker_log.debug(f"Processing chat {_chat_id}")
+                        logs.debug(f"Processing chat {_chat_id}")
                         try:
                             await v2.run_group_messages(
                                 conn=conn,
@@ -135,33 +196,35 @@ async def process_chat_groups_worker(
                                 **params,
                             )
                         except Exception as e:
-                            worker_log.error(f"Error processing chat {_chat_id}: {e}")
+                            logs.error(f"Error processing chat {_chat_id}: {e}")
                             await DbChat.set_processing_error(conn, [_chat_id], message=str(e))
                             if not run_forever:
                                 raise e
                         else:
-                            worker_log.debug(f"Successfully processed chat {_chat_id}")
+                            logs.debug(f"Successfully processed chat {_chat_id}")
                             await DbChat.set_processing_done(conn, [_chat_id])
                         finally:
                             _processing_ids.remove(_chat_id)
             except Exception:
                 if _processing_ids is not None:
-                    worker_log.debug(f"Caught an exception, resetting {len(_processing_ids)}")
+                    logs.debug(f"Caught an exception, resetting {len(_processing_ids)}")
                     await DbChat.reset_processing(conn, list(_processing_ids))
                 raise
 
 
-async def _get_groups_not_embedded(conn: asyncpg.Connection, limit: int = 1) -> list[EmbeddingGroup]:
+async def _get_groups_not_embedded(conn: asyncpg.Connection, source: AISource, limit: int = 1) -> list[EmbeddingGroup]:
     """
     Get chat groups that do not have embeddings yet - i.e., no relation exists in ai.mistral_group_embeddings -
-    and lock them for processing.
+    and lock them for processing. Only returns groups where the user has an API key for the given source.
     """
     records = await conn.fetch(
         """
-        SELECT mg.id, mg.title, mg.summary, msg.messages, c.created_by AS user_id
+        SELECT mg.id, mg.title, mg.summary, msg.messages, c.created_by AS user_id,
+               u.api_keys ->> $2 AS api_key
         FROM ai.message_groups mg
         LEFT JOIN ai.mistral_group_embeddings cge ON cge.group_id = mg.id
         LEFT JOIN general.chats c ON c.id = mg.chat_id
+        LEFT JOIN general.users u ON u.id = c.created_by
         LEFT JOIN LATERAL (
             SELECT ARRAY_AGG(cm.message ORDER BY cm.sent_at) AS messages
             FROM ai.message_group_chats m
@@ -173,11 +236,14 @@ async def _get_groups_not_embedded(conn: asyncpg.Connection, limit: int = 1) -> 
         WHERE COALESCE(mg.meta ->> 'embeddings_status' <> 'processing', TRUE)
              -- Only groups without embeddings yet
              AND cge.id IS NULL
+             -- Only groups where the user has an API key for the source
+             AND NULLIF(u.api_keys ->> $2, '') IS NOT NULL
         ORDER BY mg.id
             FOR UPDATE OF mg SKIP LOCKED
         LIMIT $1
         """,
         limit,
+        source,
     )
     return [EmbeddingGroupAdapter.validate_python(row) for row in records]
 
@@ -191,18 +257,19 @@ async def process_embeddings_worker(
     run_forever: bool = True,
     embedding_model: str = DEFAULT_EMBEDDING_MODEL,
 ):
-    worker_log = WorkerLoggerAdapter(logs, {"worker_id": worker_id, "worker_type": "EmbeddingWorker"})
+    set_worker_logger(worker_id, "EmbeddingWorker")
+    _source = get_source_from_model(embedding_model)
     async with pool.acquire() as conn:
         async with niquests.AsyncSession(timeout=timeout) as session:
-            worker_log.info("Starting embedding work loop")
+            logs.info("Starting embedding work loop")
             _processing_ids: set[int] | None = None
             try:
                 while True:
                     HEALTH_FILE.touch()
                     async with conn.transaction():
-                        _groups = await _get_groups_not_embedded(conn, limit=chunk_size)
+                        _groups = await _get_groups_not_embedded(conn, source=_source, limit=chunk_size)
                         if not _groups:
-                            worker_log.debug("No groups found, sleeping...")
+                            logs.debug("No groups found, sleeping...")
                             await asyncio.sleep(sleep_no_data)
                             if not run_forever:
                                 break
@@ -213,13 +280,13 @@ async def process_embeddings_worker(
                     try:
                         await gen_groups_embeddings(conn, session, groups=_groups, model_name=embedding_model)
                     except Exception as e:
-                        worker_log.error(f"Error processing {len(_groups)} groups: {e}")
+                        logs.error(f"Error processing {len(_groups)} groups: {e}")
                         await MessageGroup.set_processing_error(conn, _group_ids, message=str(e))
                         _processing_ids = None  # Clear to prevent reset in outer except block
                         if not run_forever:
                             raise e
                     else:
-                        worker_log.debug(f"Successfully processed {len(_groups)} groups")
+                        logs.debug(f"Successfully processed {len(_groups)} groups")
                         await MessageGroup.set_processing_done(conn, _group_ids)
 
                     if not run_forever:
@@ -227,6 +294,6 @@ async def process_embeddings_worker(
 
             except Exception:
                 if _processing_ids is not None:
-                    worker_log.debug(f"Caught an exception, resetting {len(_processing_ids)}")
+                    logs.debug(f"Caught an exception, resetting {len(_processing_ids)}")
                     await MessageGroup.reset_processing(conn, list(_processing_ids))
                 raise

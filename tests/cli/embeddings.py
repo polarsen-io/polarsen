@@ -22,7 +22,7 @@ from ..data.db import (
 
 
 def _insert_message_groups(engine: psycopg.Connection, group_meta: dict | None = None):
-    users_data = [gen_user(), gen_user(api_keys={"mistral": "test-key-1234"})]
+    users_data = [gen_user(api_keys={"mistral": "test-key-1234"}), gen_user(api_keys={"mistral": "test-key-5678"})]
     chats_data = [
         gen_chat(created_by=users_data[0]["id"]),
         gen_chat(created_by=users_data[1]["id"]),

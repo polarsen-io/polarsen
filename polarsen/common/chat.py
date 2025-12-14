@@ -5,7 +5,7 @@ import datetime as dt
 import json
 import textwrap
 from dataclasses import dataclass, field
-from typing import Sequence, TYPE_CHECKING
+from typing import Sequence, TYPE_CHECKING, Literal
 
 import asyncpg
 import niquests
@@ -17,6 +17,7 @@ if TYPE_CHECKING:
 
 from polarsen.db import UsageToken
 from polarsen.logs import logs
+from polarsen import env
 from .models import mistral, gemini, openai, grok, self_hosted
 from .models.gemini import is_thinking_only_model
 from .search import search_close_messages, CloseEmbedding
@@ -57,34 +58,69 @@ def fmt_context_message(context: list[dict], user: str) -> str:
 
 @dataclass
 class ChatSession:
+    """Base class for chat sessions with different AI providers."""
+
     model_name: str
-    """Key for the RAG model"""
-    rag_api_key: str
-    api_key: str
+    api_keys: dict[AISource, str] = field(default_factory=dict)
+    rag_model_name: Literal["mistral"] = "mistral"
+
     _input_token_count: int = field(default=0, init=False)
     _output_token_count: int = field(default=0, init=False)
     _cached_token_count: int = field(default=0, init=False)
 
     @property
-    def intput_token_count(self):
+    def model_source(self) -> AISource:
+        raise NotImplementedError("model_source must be implemented in subclasses")
+
+    @property
+    def rag_model_source(self) -> AISource:
+        return "mistral"
+
+    @property
+    def api_key(self) -> str:
+        """Return the API key for the current model source."""
+        source = self.model_source
+        api_key = self.api_keys.get(source)
+        if not api_key:
+            raise ValueError(f"API key for source {source!r} is not set")
+        return api_key
+
+    @property
+    def rag_api_key(self) -> str:
+        """Return the RAG API key for fetching close messages."""
+        api_key = self.api_keys.get(self.rag_model_name)
+        if not api_key:
+            logs.warning("No RAG API key set, using default MISTRAL_API_KEY from environment")
+            return env.MISTRAL_API_KEY or ""
+        return api_key
+
+    @property
+    def input_token_count(self) -> int:
+        """Return the total number of input tokens used."""
         return self._input_token_count
 
     @property
-    def output_token_count(self):
+    def output_token_count(self) -> int:
+        """Return the total number of output tokens used."""
         return self._output_token_count
 
     @property
-    def cached_token_count(self):
+    def cached_token_count(self) -> int:
+        """Return the total number of cached tokens used."""
         return self._cached_token_count
 
     @classmethod
-    def get_session(cls, model_name: str, rag_api_key: str, api_key: str):
+    def get_session(cls, model_name: str, api_keys: dict[AISource, str] | None = None):
+        """
+        Factory method to create the appropriate chat session based on the model name.
+        """
+        _api_keys = api_keys or {}
         if mistral.is_mistral_model(model_name):
-            return MistralChatSession(model_name=model_name, api_key=api_key, rag_api_key=rag_api_key)
+            return MistralChatSession(model_name=model_name, api_keys=_api_keys)
         elif gemini.is_gemini_model(model_name):
-            return GeminiChatSession(model_name=model_name, api_key=api_key, rag_api_key=rag_api_key)
+            return GeminiChatSession(model_name=model_name, api_keys=_api_keys)
         elif openai.is_openai_model(model_name) or grok.is_grok_model(model_name):
-            return OpenAIChatSession(model_name=model_name, api_key=api_key, rag_api_key=rag_api_key)
+            return OpenAIChatSession(model_name=model_name, api_keys=_api_keys)
         else:
             raise ValueError(f"Model {model_name!r} is not supported")
 
@@ -95,17 +131,24 @@ class ChatSession:
         chat_id: int,
         question: str,
         limit: int = 5,
-    ):
-        with set_auth_headers(session, self.rag_api_key):
+    ) -> list[CloseEmbedding]:
+        """
+        Fetch message groups that are semantically close to the given question.
+        """
+        with set_auth_headers(session, self.rag_api_key, self.rag_model_source):
             search_results = await search_close_messages(session, conn, question=question, chat_id=chat_id, limit=limit)
         return search_results
 
-    def set_token(self, token: UsageToken):
+    def set_token(self, token: UsageToken) -> None:
+        """
+        Update token counts from a usage token response.
+        """
         self._cached_token_count += token.get("cached", 0)
         self._input_token_count += token["input"]
         self._output_token_count += token["output"]
 
-    def clear(self):
+    def clear(self) -> None:
+        """Reset all token counts to zero."""
         self._cached_token_count = 0
         self._input_token_count = 0
         self._output_token_count = 0
@@ -133,6 +176,8 @@ class MistralChatSession(ChatSession):
         user: str,
         limit: int = 5,
     ):
+        import mistralai.models as mistral_models
+
         search_results = await self.fetch_close_messages(
             conn=conn,
             session=session,
@@ -151,9 +196,12 @@ class MistralChatSession(ChatSession):
         return response, debug_data
 
     async def ask(self, session: niquests.AsyncSession, messages: Sequence[mistral_models.MessagesTypedDict]):
+        import mistralai.models as mistral_models
+
         self.messages += messages
         request = mistral_models.ChatCompletionRequestTypedDict(messages=self.messages, model=self.model_name)
-        resp, token, _ = await mistral.fetch_completion(session, request)
+        with set_auth_headers(session, self.api_key, self.model_source):
+            resp, token, _ = await mistral.fetch_completion(session, request)
         self.messages.append(mistral_models.AssistantMessageTypedDict(content=resp))
         self.set_token(token)
         return resp
@@ -185,6 +233,8 @@ class GeminiChatSession(ChatSession):
         user: str,
         limit: int = 5,
     ):
+        from google.genai import types as genai_types
+
         search_results = await self.fetch_close_messages(
             conn=conn,
             session=session,
@@ -234,6 +284,8 @@ class GeminiChatSession(ChatSession):
         seed: int | None = None,
         disable_thinking: bool = True,
     ):
+        from google.genai import types as genai_types
+
         if is_thinking_only_model(self.model_name) and disable_thinking:
             # If the model is a thinking-only model, we disable thinking
             disable_thinking = False
@@ -244,10 +296,10 @@ class GeminiChatSession(ChatSession):
             seed=seed,
             thinking_config=genai_types.ThinkingConfig(thinking_budget=0) if disable_thinking else None,
         )
-        session.headers.pop("Authorization", None)  # Remove any existing Authorization header
-        resp, token, payload = await gemini.fetch_completion(
-            session, model=self.model_name, config=config, contents=messages
-        )
+        with set_auth_headers(session, self.api_key, self.model_source):
+            resp, token, payload = await gemini.fetch_completion(
+                session, model=self.model_name, config=config, contents=messages
+            )
         self.messages.append(
             genai_types.Content(
                 role="model",
@@ -307,6 +359,8 @@ class OpenAIChatSession(ChatSession):
         user: str,
         limit: int = 5,
     ):
+        from openai.types import chat as openai_types
+
         search_results = await self.fetch_close_messages(
             conn=conn,
             session=session,
@@ -334,12 +388,16 @@ class OpenAIChatSession(ChatSession):
         return response, debug_data
 
     async def ask(self, session: niquests.AsyncSession, messages: list[openai_types.ChatCompletionMessageParam]):
+        from openai.types import chat as openai_types
+
         self.messages += messages
         if self.endpoint is None:
             raise ValueError("Endpoint is not set for OpenAIChatSession")
-        resp, token, _ = await openai.fetch_chat_completion(
-            session, model=self.model_name, messages=messages, endpoint=self.endpoint
-        )
+
+        with set_auth_headers(session, self.api_key, self.model_source):
+            resp, token, _ = await openai.fetch_chat_completion(
+                session, model=self.model_name, messages=messages, endpoint=self.endpoint
+            )
         self.messages.append(
             openai_types.ChatCompletionAssistantMessageParam(
                 role="assistant",
@@ -354,16 +412,50 @@ class OpenAIChatSession(ChatSession):
         self.messages = []
 
 
+# Mapping of AI source to set_headers function
+_SET_HEADERS_FUNCS = {
+    "mistral": mistral.set_headers,
+    "gemini": gemini.set_headers,
+    "openai": openai.set_headers,
+    "grok": grok.set_headers,
+    "self_hosted": lambda session, api_key=None: self_hosted.set_headers(session),
+}
+
+# Header keys used by each AI source (for saving/restoring previous values)
+_AUTH_HEADER_KEYS: dict[AISource, str] = {
+    "mistral": "Authorization",
+    "gemini": "x-goog-api-key",
+    "openai": "Authorization",
+    "grok": "Authorization",
+    "self_hosted": "Authorization",
+}
+
+
 @contextlib.contextmanager
-def set_auth_headers(session: niquests.AsyncSession, api_key: str):
-    auth = session.headers.get("Authorization")
+def set_auth_headers(session: niquests.AsyncSession, api_key: str, source: AISource):
+    """
+    Context manager to temporarily set authentication headers for a given AI source.
+
+    Reuses the set_headers functions from each model module.
+    """
     if api_key is None:
         raise ValueError("API key is not set")
-    session.headers["Authorization"] = f"Bearer {api_key}"
+
+    set_headers_func = _SET_HEADERS_FUNCS.get(source)
+    if set_headers_func is None:
+        raise ValueError(f"Unknown AI source: {source!r}")
+
+    # Get the header key to save/restore previous value
+    header_key = _AUTH_HEADER_KEYS[source]
+    previous_value = session.headers.get(header_key)
+
+    # Call set_headers to set the authentication header
+    set_headers_func(session, api_key=api_key)
+
     try:
         yield
     finally:
-        if auth is None:
-            session.headers.pop("Authorization", None)
+        if previous_value is None:
+            session.headers.pop(header_key, None)
         else:
-            session.headers["Authorization"] = auth
+            session.headers[header_key] = previous_value

@@ -14,11 +14,15 @@ from polarsen.db import UsageToken
 __all__ = ("set_headers", "fetch_chat_completion")
 
 
-def set_headers(session: niquests.Session, api_key: str | None = None) -> None:
+HEADER_KEY = "Authorization"
+
+
+def set_headers(session: niquests.Session, api_key: str | None = None) -> str:
     _api_key = api_key or OPENAI_API_KEY
     if not _api_key:
         raise ValueError("OPENAI_API_KEY is not set")
-    session.headers["Authorization"] = f"Bearer {_api_key}"
+    session.headers[HEADER_KEY] = f"Bearer {_api_key}"
+    return HEADER_KEY
 
 
 @overload
