@@ -23,6 +23,11 @@ services:
     environment:
       - POSTGRES_PASSWORD=${PG_PASSWORD:-postgres}
       - POSTGRES_USER=${PG_USER:-postgres}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${PG_USER:-postgres}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
     volumes:
       - ./static/postgres.conf:/etc/postgresql/postgresql.conf:ro
       - ./static/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
@@ -73,7 +78,10 @@ services:
     ports:
       - "127.0.0.1:5050:5050"
     depends_on:
-      - db
+      db:
+        condition: service_healthy
+      pg-init:
+        condition: service_completed_successfully
 #    profiles:
 #      - api
 
@@ -131,8 +139,12 @@ services:
       - CHAT_UPLOADS_S3_BUCKET=${CHAT_UPLOADS_S3_BUCKET:-chat-uploads}
       - SLEEP_NO_DATA=${SLEEP_NO_DATA:-60}
     depends_on:
-      - db
-      - s3
+      db:
+        condition: service_healthy
+      s3:
+        condition: service_started
+      pg-init:
+        condition: service_completed_successfully
     profiles:
       - listener
 
@@ -156,7 +168,10 @@ services:
       - PG_HOST=db
       - SLEEP_NO_DATA=${SLEEP_NO_DATA:-60}
     depends_on:
-      - db
+      db:
+        condition: service_healthy
+      pg-init:
+        condition: service_completed_successfully
     profiles:
       - listener
 
@@ -195,7 +210,8 @@ services:
       - PG_USER=${PG_USER:-postgres}
       - PG_PASSWORD=${PG_PASSWORD:-postgres}
     depends_on:
-      - db
+      db:
+        condition: service_healthy
 
   s3-init:
     image: minio/mc
