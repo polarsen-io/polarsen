@@ -34,7 +34,9 @@ services:
       retries: 5
 
   s3:
-    image: quay.io/minio/minio
+    # quay.io/minio/minio is no longer pullable; Chainguard's public build, pinned by digest
+    image: cgr.dev/chainguard/minio:latest@sha256:2684b2534b83793f4cf6d04c54340ddbde8fb364552154d7a582d37b4fd6bb58
+    user: "0"  # named volume is root-owned
     restart: unless-stopped
     ports:
       - "127.0.0.1:9001:9001"

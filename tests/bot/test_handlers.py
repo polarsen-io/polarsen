@@ -2,19 +2,19 @@ from typing import cast
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from telegram import Update, User as TgUser, Message
+from telegram import Message, Update
+from telegram import User as TgUser
 
 from polarsen.bot import bot as bot_module
 from polarsen.bot.bot import (
-    list_chats_handler,
-    handle_message,
-    fmt_chats,
     _list_chats,
+    fmt_chats,
+    handle_message,
+    list_chats_handler,
 )
 from polarsen.bot.data import User, UserState
-from polarsen.bot.models import Chat, ChatUpload
 from polarsen.bot.intl import TranslateFn
-
+from polarsen.bot.models import Chat, ChatUpload
 
 # --- Fixtures ---
 

@@ -1,18 +1,20 @@
 from __future__ import annotations
 
-import niquests
 from typing import TYPE_CHECKING
+
+import niquests
 
 if TYPE_CHECKING:
     from openai.types import ChatModel
     from openai.types.chat import ChatCompletionMessageParam
 
-from polarsen.env import SCALEWAY_API_KEY
-from .. import openai
 from polarsen.db import UsageToken
+from polarsen.env import SCALEWAY_API_KEY
+
+from .. import openai
 from .utils import SELF_HOSTED_ENDPOINTS
 
-__all__ = ("set_headers", "fetch_chat_completion")
+__all__ = ("fetch_chat_completion", "set_headers")
 
 
 HEADER_KEY = "Authorization"

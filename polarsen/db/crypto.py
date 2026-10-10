@@ -3,10 +3,10 @@ from cryptography.fernet import Fernet, InvalidToken
 from polarsen import env
 
 __all__ = (
-    "encrypt_secret",
+    "decrypt_api_keys",
     "decrypt_secret",
     "encrypt_api_keys",
-    "decrypt_api_keys",
+    "encrypt_secret",
 )
 
 

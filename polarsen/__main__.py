@@ -31,7 +31,7 @@ if _mode != "api":
 
 if _mode in ("cli", "local"):
     logs.debug("Running in CLI mode")
-    from .cli import chat_group, ai_group, db_group
+    from .cli import ai_group, chat_group, db_group
 
     cli.add_command_group(ai_group)
     cli.add_command_group(chat_group)

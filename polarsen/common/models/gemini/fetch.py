@@ -7,11 +7,13 @@ import niquests
 if TYPE_CHECKING:
     from google.genai import types
 import math
+from http import HTTPStatus
+
+from polarsen.db import UsageToken
 from polarsen.env import GEMINI_API_KEY
 from polarsen.logs import logs
-from polarsen.db import UsageToken
-from ..utils import TooManyRequestsError, QuotaExceededError, retry_async
-from http import HTTPStatus
+
+from ..utils import QuotaExceededError, TooManyRequestsError, retry_async
 
 __all__ = ("fetch_completion", "set_headers")
 
@@ -47,7 +49,7 @@ def _check_resp(resp: niquests.Response) -> dict:
             if _retry_delay is None:
                 raise ValueError("Too many requests but no retry info found") from e
             raise TooManyRequestsError(retry_delay=_retry_delay)
-        raise e
+        raise
     return resp.json()
 
 

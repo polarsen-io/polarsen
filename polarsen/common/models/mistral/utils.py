@@ -1,4 +1,4 @@
-__all__ = ("is_mistral_model", "MISTRAL_MODELS", "MISTRAL_AGENTS", "is_mistral_agent")
+__all__ = ("MISTRAL_AGENTS", "MISTRAL_MODELS", "is_mistral_agent", "is_mistral_model")
 
 MISTRAL_MODELS = {
     "mistral-large-latest",
@@ -14,7 +14,6 @@ MISTRAL_MODELS = {
     "codestral-latest",
     "mistral-ocr-latest",
     "magistral-small-latest",
-    "mistral-small-latest",
 }
 
 MISTRAL_AGENTS = {"discussion": "ag:ad832830:20250516:untitled-agent:38dc4ce3"}

@@ -1,25 +1,26 @@
 import asyncio
-from pathlib import Path
 import os
+from pathlib import Path
 
 import asyncpg
 import botocore.client
 import niquests
 
-
 from polarsen.ai.conversations import v2
-from polarsen.ai.embeddings import gen_groups_embeddings, DEFAULT_EMBEDDING_MODEL, EmbeddingGroup, EmbeddingGroupAdapter
-from polarsen.common.utils import get_source_from_model, AISource
+from polarsen.ai.embeddings import DEFAULT_EMBEDDING_MODEL, EmbeddingGroup, EmbeddingGroupAdapter, gen_groups_embeddings
+from polarsen.common.utils import AISource, get_source_from_model
 from polarsen.db import DbChat, MessageGroup
 from polarsen.logs import logs, set_worker_logger
+from polarsen.pg import acquire
+
 from .ingest import process_uploads
 
 __all__ = (
-    "process_chat_worker",
+    "DEFAULT_EMBEDDING_MODEL",
     "process_chat_groups_worker",
+    "process_chat_worker",
     "process_embeddings_worker",
     "process_stuck_chats_worker",
-    "DEFAULT_EMBEDDING_MODEL",
 )
 
 # Health file touched on each loop iteration to signal liveness (e.g., for container health checks)
@@ -40,24 +41,23 @@ async def process_chat_worker(
     """
     set_worker_logger(worker_id, "UploadWorker")
 
-    async with pool.acquire() as conn:
-        async with niquests.AsyncSession() as session:
-            logs.info(f"Worker {worker_id}: starting listener")
-            try:
-                while True:
-                    HEALTH_FILE.touch()
-                    async with conn.transaction():
-                        _chat_ids = await process_uploads(
-                            client=session,
-                            conn=conn,
-                            s3_client=s3_client,
-                            show_progress=False,
-                            limit=limit,
-                        )
-                    if not _chat_ids:
-                        await asyncio.sleep(sleep_no_data)
-            except KeyboardInterrupt:
-                logs.debug("Received KeyboardInterrupt, exiting...")
+    async with acquire(pool) as conn, niquests.AsyncSession() as session:
+        logs.info(f"Worker {worker_id}: starting listener")
+        try:
+            while True:
+                HEALTH_FILE.touch()
+                async with conn.transaction():
+                    _chat_ids = await process_uploads(
+                        client=session,
+                        conn=conn,
+                        s3_client=s3_client,
+                        show_progress=False,
+                        limit=limit,
+                    )
+                if not _chat_ids:
+                    await asyncio.sleep(sleep_no_data)
+        except KeyboardInterrupt:
+            logs.debug("Received KeyboardInterrupt, exiting...")
 
 
 STUCK_PROCESSING_THRESHOLD_MINUTES = 30
@@ -102,7 +102,7 @@ async def process_stuck_chats_worker(
     set_worker_logger(worker_id, "StuckChatsWorker")
     logs.info(f"Starting stuck chats worker (threshold: {threshold_minutes}min, interval: {check_interval}s)")
 
-    async with pool.acquire() as conn:
+    async with acquire(pool) as conn:
         while True:
             try:
                 reset_count = await _reset_stuck_processing_chats(conn, threshold_minutes)
@@ -162,54 +162,53 @@ async def process_chat_groups_worker(
     set_worker_logger(worker_id, "ChatGroupWorker")
     _model_name = params.get("model_name")
     _source = get_source_from_model(_model_name)
-    async with pool.acquire() as conn:
-        async with niquests.AsyncSession(timeout=timeout) as session:
-            logs.debug("Starting work loop")
-            _processing_ids: set[int] | None = None
-            try:
-                while True:
-                    HEALTH_FILE.touch()
-                    async with conn.transaction():
-                        _chats = await _get_chats_not_grouped(
-                            conn, source=_source, limit=limit, only_with_keys=only_with_keys
+    async with acquire(pool) as conn, niquests.AsyncSession(timeout=timeout) as session:
+        logs.debug("Starting work loop")
+        _processing_ids: set[int] | None = None
+        try:
+            while True:
+                HEALTH_FILE.touch()
+                async with conn.transaction():
+                    _chats = await _get_chats_not_grouped(
+                        conn, source=_source, limit=limit, only_with_keys=only_with_keys
+                    )
+                    if not _chats:
+                        logs.debug("No chats to process, sleeping...")
+                        await asyncio.sleep(sleep_no_data)
+                        if not run_forever:
+                            break
+                        continue
+                    _chat_ids = [_chat["id"] for _chat in _chats]
+                    _processing_ids = set(_chat_ids)
+                    await DbChat.set_is_processing(conn, _chat_ids)
+                for _chat in _chats:
+                    _chat_id = _chat["id"]
+                    logs.debug(f"Processing chat {_chat_id}")
+                    try:
+                        await v2.run_group_messages(
+                            conn=conn,
+                            session=session,
+                            show_progress=False,
+                            chat_id=_chat_id,
+                            api_key=_chat["api_key"],
+                            user_id=_chat["user_id"],
+                            **params,
                         )
-                        if not _chats:
-                            logs.debug("No chats to process, sleeping...")
-                            await asyncio.sleep(sleep_no_data)
-                            if not run_forever:
-                                break
-                            continue
-                        _chat_ids = [_chat["id"] for _chat in _chats]
-                        _processing_ids = set(_chat_ids)
-                        await DbChat.set_is_processing(conn, _chat_ids)
-                    for _chat in _chats:
-                        _chat_id = _chat["id"]
-                        logs.debug(f"Processing chat {_chat_id}")
-                        try:
-                            await v2.run_group_messages(
-                                conn=conn,
-                                session=session,
-                                show_progress=False,
-                                chat_id=_chat_id,
-                                api_key=_chat["api_key"],
-                                user_id=_chat["user_id"],
-                                **params,
-                            )
-                        except Exception as e:
-                            logs.error(f"Error processing chat {_chat_id}: {e}")
-                            await DbChat.set_processing_error(conn, [_chat_id], message=str(e))
-                            if not run_forever:
-                                raise e
-                        else:
-                            logs.debug(f"Successfully processed chat {_chat_id}")
-                            await DbChat.set_processing_done(conn, [_chat_id])
-                        finally:
-                            _processing_ids.remove(_chat_id)
-            except Exception:
-                if _processing_ids is not None:
-                    logs.debug(f"Caught an exception, resetting {len(_processing_ids)}")
-                    await DbChat.reset_processing(conn, list(_processing_ids))
-                raise
+                    except Exception as e:
+                        logs.error(f"Error processing chat {_chat_id}: {e}")
+                        await DbChat.set_processing_error(conn, [_chat_id], message=str(e))
+                        if not run_forever:
+                            raise
+                    else:
+                        logs.debug(f"Successfully processed chat {_chat_id}")
+                        await DbChat.set_processing_done(conn, [_chat_id])
+                    finally:
+                        _processing_ids.remove(_chat_id)
+        except Exception:
+            if _processing_ids is not None:
+                logs.debug(f"Caught an exception, resetting {len(_processing_ids)}")
+                await DbChat.reset_processing(conn, list(_processing_ids))
+            raise
 
 
 async def _get_groups_not_embedded(conn: asyncpg.Connection, source: AISource, limit: int = 1) -> list[EmbeddingGroup]:
@@ -259,41 +258,40 @@ async def process_embeddings_worker(
 ):
     set_worker_logger(worker_id, "EmbeddingWorker")
     _source = get_source_from_model(embedding_model)
-    async with pool.acquire() as conn:
-        async with niquests.AsyncSession(timeout=timeout) as session:
-            logs.info("Starting embedding work loop")
-            _processing_ids: set[int] | None = None
-            try:
-                while True:
-                    HEALTH_FILE.touch()
-                    async with conn.transaction():
-                        _groups = await _get_groups_not_embedded(conn, source=_source, limit=chunk_size)
-                        if not _groups:
-                            logs.debug("No groups found, sleeping...")
-                            await asyncio.sleep(sleep_no_data)
-                            if not run_forever:
-                                break
-                            continue
-                        _group_ids = [_group["id"] for _group in _groups]
-                        _processing_ids = set(_group_ids)
-                        await MessageGroup.set_is_processing(conn, _group_ids)
-                    try:
-                        await gen_groups_embeddings(conn, session, groups=_groups, model_name=embedding_model)
-                    except Exception as e:
-                        logs.error(f"Error processing {len(_groups)} groups: {e}")
-                        await MessageGroup.set_processing_error(conn, _group_ids, message=str(e))
-                        _processing_ids = None  # Clear to prevent reset in outer except block
+    async with acquire(pool) as conn, niquests.AsyncSession(timeout=timeout) as session:
+        logs.info("Starting embedding work loop")
+        _processing_ids: set[int] | None = None
+        try:
+            while True:
+                HEALTH_FILE.touch()
+                async with conn.transaction():
+                    _groups = await _get_groups_not_embedded(conn, source=_source, limit=chunk_size)
+                    if not _groups:
+                        logs.debug("No groups found, sleeping...")
+                        await asyncio.sleep(sleep_no_data)
                         if not run_forever:
-                            raise e
-                    else:
-                        logs.debug(f"Successfully processed {len(_groups)} groups")
-                        await MessageGroup.set_processing_done(conn, _group_ids)
-
+                            break
+                        continue
+                    _group_ids = [_group["id"] for _group in _groups]
+                    _processing_ids = set(_group_ids)
+                    await MessageGroup.set_is_processing(conn, _group_ids)
+                try:
+                    await gen_groups_embeddings(conn, session, groups=_groups, model_name=embedding_model)
+                except Exception as e:
+                    logs.error(f"Error processing {len(_groups)} groups: {e}")
+                    await MessageGroup.set_processing_error(conn, _group_ids, message=str(e))
+                    _processing_ids = None  # Clear to prevent reset in outer except block
                     if not run_forever:
-                        break
+                        raise
+                else:
+                    logs.debug(f"Successfully processed {len(_groups)} groups")
+                    await MessageGroup.set_processing_done(conn, _group_ids)
 
-            except Exception:
-                if _processing_ids is not None:
-                    logs.debug(f"Caught an exception, resetting {len(_processing_ids)}")
-                    await MessageGroup.reset_processing(conn, list(_processing_ids))
-                raise
+                if not run_forever:
+                    break
+
+        except Exception:
+            if _processing_ids is not None:
+                logs.debug(f"Caught an exception, resetting {len(_processing_ids)}")
+                await MessageGroup.reset_processing(conn, list(_processing_ids))
+            raise

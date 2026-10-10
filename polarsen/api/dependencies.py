@@ -3,9 +3,10 @@ from contextlib import asynccontextmanager
 
 import asyncpg
 import niquests
+
 from polarsen.s3_utils import get_s3_client as _get_s3_client
 
-__all__ = ("connect_pg", "get_conn", "get_client", "init_connection", "get_s3_client")
+__all__ = ("connect_pg", "get_client", "get_conn", "get_s3_client", "init_connection")
 
 
 async def init_connection(conn: asyncpg.Connection):

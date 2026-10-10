@@ -1,10 +1,10 @@
 import hashlib
-from typing import AsyncIterator
+from collections.abc import AsyncIterator
 from urllib.parse import urlparse
 
 from piou import Option, Password
 
-from .env import PG_HOST, PG_PORT, PG_USER, PG_PASSWORD, PG_DATABASE, PG_DSN
+from .env import PG_DATABASE, PG_DSN, PG_HOST, PG_PASSWORD, PG_PORT, PG_USER
 
 # Parse PG_DSN if set, to use as defaults for individual options
 _pg_dsn_parsed = urlparse(PG_DSN) if PG_DSN else None

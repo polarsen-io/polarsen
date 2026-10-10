@@ -1,5 +1,5 @@
 import psycopg
-from tracktolib.pg_sync import get_tables, clean_tables
+from tracktolib.pg_sync import clean_tables, get_tables
 
 
 def generate_large_file(size_bytes: int = 5 * 1024 * 1024) -> bytes:

@@ -1,5 +1,5 @@
-from dataclasses import dataclass, field, asdict
 import datetime as dt
+from dataclasses import asdict, dataclass, field
 
 __all__ = ("TableID",)
 

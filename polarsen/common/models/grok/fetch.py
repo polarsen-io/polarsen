@@ -1,16 +1,17 @@
-from __future__ import annotations
-import niquests
 from typing import TYPE_CHECKING
+
+import niquests
 
 if TYPE_CHECKING:
     from openai.types import ChatModel
     from openai.types.chat import ChatCompletionMessageParam
 
-from polarsen.env import GROK_API_KEY
-from .. import openai
 from polarsen.db import UsageToken
+from polarsen.env import GROK_API_KEY
 
-__all__ = ("set_headers", "fetch_chat_completion")
+from .. import openai
+
+__all__ = ("fetch_chat_completion", "set_headers")
 
 
 HEADER_KEY = "Authorization"

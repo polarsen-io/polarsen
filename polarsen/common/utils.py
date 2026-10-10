@@ -1,11 +1,12 @@
-from typing import get_args, Literal, TypeGuard
+from typing import Literal, TypeGuard, get_args
 
 import niquests
 
 from polarsen import env
-from .models import mistral, gemini, openai, grok, self_hosted
 
-__all__ = ("setup_session_model", "AISource", "get_source_from_model", "is_valid_source", "ENV_VARS")
+from .models import gemini, grok, mistral, openai, self_hosted
+
+__all__ = ("ENV_VARS", "AISource", "get_source_from_model", "is_valid_source", "setup_session_model")
 
 AISource = Literal["mistral", "gemini", "openai", "grok", "self_hosted"]
 
@@ -18,10 +19,7 @@ ENV_VARS: dict[AISource, str | None] = {
 
 
 def is_valid_source(source: str | None) -> TypeGuard[AISource]:
-    if source is None or source not in get_args(AISource):
-        return False
-
-    return True
+    return not (source is None or source not in get_args(AISource))
 
 
 def get_source_from_model(model_name: str | None = None, agent_name: str | None = None) -> AISource:

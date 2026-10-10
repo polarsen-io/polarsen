@@ -1,7 +1,7 @@
 import datetime as dt
 
 from niquests import AsyncSession
-from piou import CommandGroup, Option, Derived
+from piou import CommandGroup, Derived, Option
 
 from polarsen.ai.conversations import v2
 from polarsen.ai.embeddings import gen_embeddings

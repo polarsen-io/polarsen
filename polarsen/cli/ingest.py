@@ -6,7 +6,7 @@ import niquests
 from rich.progress import track
 
 from polarsen import env
-from polarsen.db import TelegramGroup, ChatUpload
+from polarsen.db import ChatUpload, TelegramGroup
 from polarsen.logs import logs
 from polarsen.s3_utils import s3_get_object
 

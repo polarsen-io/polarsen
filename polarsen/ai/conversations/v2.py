@@ -4,25 +4,26 @@ import datetime as dt
 import json
 import time
 import uuid
-from typing import TypedDict, Iterable, Unpack, NotRequired, Literal, cast, TYPE_CHECKING
+from collections.abc import Iterable
+from typing import TYPE_CHECKING, Literal, NotRequired, TypedDict, Unpack, cast
 
 import asyncpg
 
 if TYPE_CHECKING:
-    from mistralai import models as mistral_models
-    from openai.types import chat as openai_chat_types
     from niquests import AsyncSession
+    from openai.types import chat as openai_chat_types
 
+from mistralai.client import models as mistral_models
 from pydantic.type_adapter import TypeAdapter
 from rich.progress import track
 
-from polarsen.common.utils import setup_session_model, AISource
-from polarsen.common.models import mistral, grok, gemini, self_hosted, openai
+from polarsen.common.models import gemini, grok, mistral, openai, self_hosted
 from polarsen.common.models.utils import parse_json_response
-from polarsen.db import GroupMethod, Requests, MessageGroupChat, MessageGroup, get_unique_identifier, UsageToken
+from polarsen.common.utils import AISource, setup_session_model
+from polarsen.db import GroupMethod, MessageGroup, MessageGroupChat, Requests, UsageToken, get_unique_identifier
 from polarsen.logs import logs
 
-__all__ = ("get_messages_by_dates", "apply_conversation_segmentation", "MessageLite", "ParamsV2", "SEGMENTATION_MODEL")
+__all__ = ("SEGMENTATION_MODEL", "MessageLite", "ParamsV2", "apply_conversation_segmentation", "get_messages_by_dates")
 
 GROUPING_V2 = GroupMethod(name="v2", internal_code="v2")
 
@@ -120,11 +121,11 @@ async def _fetch_mistral_segmentation(
     """
     Fetch conversation segmentation from the Mistral model.
     """
-    from mistralai import (
+    from mistralai.client.models import (
+        ChatCompletionRequestTypedDict,
         ResponseFormatTypedDict,
         SystemMessageTypedDict,
         UserMessageTypedDict,
-        ChatCompletionRequestTypedDict,
     )
 
     _messages = "[MESSAGES]" + json.dumps(messages) + "[/MESSAGES]"
@@ -173,7 +174,7 @@ async def _fetch_gemini_segmentation(
     """
     Fetch conversation segmentation from the Mistral model.
     """
-    from google.genai.types import GenerateContentConfig, Content, Part, ThinkingConfig
+    from google.genai.types import Content, GenerateContentConfig, Part, ThinkingConfig
 
     config = GenerateContentConfig(
         temperature=temperature,
@@ -267,7 +268,7 @@ async def apply_conversation_segmentation(
     Returns a list of conversations, a set of message ids that were not classified,
     and the number of tokens used.
     """
-    _messages, _ids, _users = [], set(), dict()
+    _messages, _ids, _users = [], set(), {}
     for x in messages:
         _msg = {k: v for k, v in x.items() if v is not None}
         _messages.append(_msg)
@@ -371,7 +372,7 @@ async def _get_processed_days(conn: asyncpg.Connection, chat_id: int) -> set[dt.
             order by day
             """
     rows = await conn.fetch(query, chat_id)
-    return set(x["day"] for x in rows)
+    return {x["day"] for x in rows}
 
 
 async def run_group_messages(

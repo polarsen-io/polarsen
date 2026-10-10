@@ -1,24 +1,26 @@
 import os
+from collections.abc import Mapping
 from contextlib import asynccontextmanager
 from typing import Any
-import asyncpg
-from collections.abc import Mapping
 
-from fastapi import FastAPI, Depends, Query, Request
+import asyncpg
+from fastapi import Depends, FastAPI, Query, Request
 from fastapi.responses import JSONResponse
 from starlette import status
 
 import polarsen
-from polarsen.common.chat import ChatSession
-from polarsen.logs import logs
-from polarsen.s3_utils import s3_file_upload, s3_delete_object
-from polarsen.utils import compute_md5
 from polarsen import env
-from .data import User as UserDB, Question as QuestionDB
+from polarsen.common.chat import ChatSession
 from polarsen.db import ChatUpload as ChatUploadDB
-from .dependencies import connect_pg, get_conn, get_client, get_s3_client
-from .models import NewUser, User, AIModel, AskQuestion, EmbeddingResult, Status, ChatUpload, ChatType
-from .utils import APIException, get_user, ErrorCode
+from polarsen.logs import logs
+from polarsen.s3_utils import s3_delete_object, s3_file_upload
+from polarsen.utils import compute_md5
+
+from .data import Question as QuestionDB
+from .data import User as UserDB
+from .dependencies import connect_pg, get_client, get_conn, get_s3_client
+from .models import AIModel, AskQuestion, ChatType, ChatUpload, EmbeddingResult, NewUser, Status, User
+from .utils import APIException, ErrorCode, get_user
 
 VERSION = polarsen.__version__
 
@@ -109,7 +111,7 @@ async def _get_user(
     Returns the user's profile information including their selected model and chat preferences.
     """
     if telegram_id is None:
-        raise
+        raise ValueError("telegram_id is required")
 
     data = await get_user(conn, telegram_id=telegram_id)
     return data
@@ -268,7 +270,7 @@ async def _upload_chat(
             except Exception as e2:
                 logs.warning(f"Failed to delete S3 object {file_path!r}")
                 raise e2 from e
-            raise e
+            raise
     logs.info(f"Uploaded file {filename!r} for user {user_id} to {file_path!r}")
 
     return ChatUpload(

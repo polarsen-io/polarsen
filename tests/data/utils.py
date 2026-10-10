@@ -1,8 +1,7 @@
 from uuid import uuid4
 
-from faker.providers import BaseProvider
-
 from faker import Faker
+from faker.providers import BaseProvider
 
 __all__ = ("Fake",)
 

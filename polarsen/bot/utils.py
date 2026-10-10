@@ -1,9 +1,11 @@
 import functools
-from telegram import Update
-from .data import User
 
-from polarsen.telemetry.sentry import capture_exception
+from telegram import Update
+
 from polarsen.logs import logs
+from polarsen.telemetry.sentry import capture_exception
+
+from .data import User
 
 __all__ = ("handle_errors",)
 
@@ -18,7 +20,7 @@ def handle_errors(func):
                 raise ValueError("Expected at least one argument for the decorated function")
             _update_arg = args[0]
             if not isinstance(_update_arg, Update):
-                raise ValueError("The first argument must be an instance of telegram.Update")
+                raise TypeError("The first argument must be an instance of telegram.Update")
 
             if capture_exception is not None:
                 capture_exception(e)

@@ -4,9 +4,10 @@ import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
 
-__all__ = ("i18n", "I18n", "TranslateFn")
+__all__ = ("I18n", "TranslateFn", "i18n")
 
-from typing import Callable, Generator, Any
+from collections.abc import Callable, Generator
+from typing import Any
 
 _cur_dir = Path(os.path.dirname(__file__))
 LANG_FILE = _cur_dir / "lang.toml"
@@ -58,7 +59,7 @@ class I18n:
         return commands
 
     @contextlib.contextmanager
-    def set_lang(self, lang: str) -> Generator[TranslateFn, None, None]:
+    def set_lang(self, lang: str) -> Generator[TranslateFn]:
         def t(*args, **kwargs) -> str:
             """
             Translation function that uses the current language.

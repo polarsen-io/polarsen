@@ -2,16 +2,16 @@ from http import HTTPStatus
 from typing import NamedTuple
 from unittest.mock import AsyncMock, MagicMock
 
-import pytest
 import niquests
+import pytest
 
 from polarsen.common.models.gemini.fetch import (
+    HEADER_KEY,
+    _parse_retry_delay,
     fetch_completion,
     set_headers,
-    _parse_retry_delay,
-    HEADER_KEY,
 )
-from polarsen.common.models.utils import TooManyRequestsError, QuotaExceededError
+from polarsen.common.models.utils import QuotaExceededError, TooManyRequestsError
 
 
 class CompletionCase(NamedTuple):
@@ -151,7 +151,7 @@ class TestFetchCompletion:
         assert url == "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
 
     def test_includes_system_instruction(self, loop, mock_session, mock_contents):
-        from google.genai.types import GenerateContentConfig, Content, Part
+        from google.genai.types import Content, GenerateContentConfig, Part
 
         self._setup_response(
             mock_session,
@@ -226,6 +226,8 @@ class TestFetchCompletion:
             )
 
         if case.expected_retry_delay is not None:
-            assert getattr(exc_info.value, "retry_delay") == case.expected_retry_delay
+            assert isinstance(exc_info.value, TooManyRequestsError)
+            assert exc_info.value.retry_delay == case.expected_retry_delay
         if case.check_body:
-            assert getattr(exc_info.value, "body") == case.response_data
+            assert isinstance(exc_info.value, QuotaExceededError)
+            assert exc_info.value.body == case.response_data

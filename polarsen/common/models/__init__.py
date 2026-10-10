@@ -1,13 +1,12 @@
-from . import self_hosted, mistral, openai, gemini, grok, utils
+from . import gemini, grok, mistral, openai, self_hosted, utils
 from .utils import TooManyRequestsError
 
-
 __all__ = (
-    "self_hosted",
-    "mistral",
-    "openai",
+    "TooManyRequestsError",
     "gemini",
     "grok",
+    "mistral",
+    "openai",
+    "self_hosted",
     "utils",
-    "TooManyRequestsError",
 )

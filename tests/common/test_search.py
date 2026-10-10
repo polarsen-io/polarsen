@@ -1,26 +1,27 @@
 import datetime as dt
 import unittest.mock
-from typing import NamedTuple, Callable, Any
+from collections.abc import Callable
+from typing import Any, NamedTuple
 
 import psycopg
 import pytest
 from tracktolib.pg_sync import insert_many
 from tracktolib.tests import assert_equals
 
-from tests.data.db import (
-    gen_user,
-    gen_chat,
-    gen_chat_user,
-    gen_chat_message,
-    gen_message_group_method,
-    gen_message_group,
-    gen_message_group_chat,
-    gen_mistral_group_embedding,
-    load_chat_types,
-    DEFAULT_DATETIME,
-)
 from polarsen.common import search as search_module
 from polarsen.common.search import search_close_messages
+from tests.data.db import (
+    DEFAULT_DATETIME,
+    gen_chat,
+    gen_chat_message,
+    gen_chat_user,
+    gen_message_group,
+    gen_message_group_chat,
+    gen_message_group_method,
+    gen_mistral_group_embedding,
+    gen_user,
+    load_chat_types,
+)
 
 EMBEDDING = [0.1] * 1024
 USER = gen_user()

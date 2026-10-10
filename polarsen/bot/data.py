@@ -10,6 +10,7 @@ from telegram import User as TelegramUser
 
 from polarsen.common.utils import AISource, get_source_from_model, is_valid_source
 from polarsen.logs import logs
+
 from . import models
 from .env import API_URI
 from .intl import i18n
@@ -156,9 +157,9 @@ _UserAdapter = TypeAdapter(models.User)
 def _check_response(resp: niquests.Response) -> dict:
     try:
         resp.raise_for_status()
-    except HTTPError as e:
+    except HTTPError:
         logs.error(resp.json())
-        raise e
+        raise
     return resp.json()
 
 

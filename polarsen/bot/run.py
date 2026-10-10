@@ -4,6 +4,7 @@ from pathlib import Path
 from piou import CommandGroup, Option
 
 from polarsen.logs import logs
+
 from . import bot
 from .env import TELEGRAM_BOT_TOKEN
 

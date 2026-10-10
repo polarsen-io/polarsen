@@ -1,9 +1,9 @@
 from dataclasses import dataclass
-from typing import TypedDict, NotRequired
+from typing import NotRequired, TypedDict
 
 import asyncpg
 import bcrypt
-from tracktolib.pg import insert_returning, insert_many
+from tracktolib.pg import insert_many, insert_returning
 
 from polarsen.common.utils import AISource
 from polarsen.logs import logs

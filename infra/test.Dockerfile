@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.4
 # check=error=true
-FROM ghcr.io/astral-sh/uv:python3.13-alpine as builder
+FROM ghcr.io/astral-sh/uv:python3.14-alpine as builder
 
 # Install system packages as root
 RUN apk add --no-cache \

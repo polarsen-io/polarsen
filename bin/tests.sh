@@ -25,7 +25,7 @@ if [[ ! -f "infra/.env" ]]; then
 fi
 
 ./bin/start.sh up -d db s3
-./bin/start.sh --profile test run pg-init-test
+./bin/start.sh --profile test run --build pg-init-test
 if [ "$_no_run" = false ]; then
   ./bin/start.sh --profile test run --rm test uv run pytest "${@}"
 fi

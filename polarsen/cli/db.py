@@ -1,14 +1,15 @@
 import os
 import time
 
-from piou import CommandGroup, Password, Option
+from piou import CommandGroup, Option, Password
 from tracktolib.pg import insert_many
 from tracktolib.utils import exec_cmd
 
 from polarsen.env import SQL_DIR
 from polarsen.logs import logs
 from polarsen.pg import get_conn
-from polarsen.utils import PgHost, PgPort, PgUser, PgPassword, PgDatabase
+from polarsen.utils import PgDatabase, PgHost, PgPassword, PgPort, PgUser
+
 from .utils import set_pg_env
 
 db_group = CommandGroup("db", help="Database commands")
@@ -40,7 +41,7 @@ async def _setup_db(
         logs.debug(f"Database {pg_database!r} does not exist, creating...")
         with set_pg_env(f"{_pg_url_no_db}/postgres"):
             logs.debug(f"Creating database {pg_database!r}...")
-            exec_cmd("createdb {}".format(pg_database))
+            exec_cmd(f"createdb {pg_database}")
 
     # Create extensions and tables
 

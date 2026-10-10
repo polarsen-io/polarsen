@@ -1,26 +1,25 @@
-from __future__ import annotations
-
 import datetime as dt
 import hashlib
 import uuid
+from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Literal, Iterable, TypedDict, NotRequired
+from typing import Literal, NotRequired, TypedDict
 
 import asyncpg
-from tracktolib.pg import insert_many, PGConflictQuery, insert_returning, insert_one, update_one
+from tracktolib.pg import PGConflictQuery, insert_many, insert_one, insert_returning, update_one
 
 from .utils import TableID
 
 __all__ = (
+    "MISTRAL_EMBED_VECTOR_SIZE",
     "GroupMethod",
     "MessageGroup",
     "MessageGroupChat",
-    "MISTRAL_EMBED_VECTOR_SIZE",
-    "get_unique_identifier",
     "MistralGroupEmbeddings",
-    "Requests",
     "RequestType",
+    "Requests",
     "UsageToken",
+    "get_unique_identifier",
 )
 
 
@@ -41,7 +40,7 @@ class GroupMethod(TableID):
     meta: dict | None = None
 
     @staticmethod
-    async def bulk_save(conn: asyncpg.Connection, methods: list["GroupMethod"]):
+    async def bulk_save(conn: asyncpg.Connection, methods: list[GroupMethod]):
         await insert_many(
             conn,
             "ai.message_group_methods",
@@ -175,7 +174,7 @@ class MessageGroupChat(TableID):
     msg_id: int
 
     @staticmethod
-    async def bulk_save(conn: asyncpg.Connection, messages: Iterable["MessageGroupChat"]):
+    async def bulk_save(conn: asyncpg.Connection, messages: Iterable[MessageGroupChat]):
         _all_data = []
         for m in messages:
             _data = m.data
@@ -196,7 +195,7 @@ class MistralGroupEmbeddings(TableID):
     last_processed_at: dt.datetime | None = None
 
     def __post_init__(self):
-        _now = dt.datetime.now(dt.timezone.utc)
+        _now = dt.datetime.now(dt.UTC)
         self._created_at = _now
         self.last_processed_at = _now
 

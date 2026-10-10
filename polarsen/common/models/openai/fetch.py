@@ -1,6 +1,5 @@
-from __future__ import annotations
 import pprint
-from typing import overload, Literal, TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal, overload
 
 import niquests
 
@@ -8,10 +7,10 @@ if TYPE_CHECKING:
     from openai.types import ChatModel
     from openai.types.chat import ChatCompletionMessageParam
 
-from polarsen.env import OPENAI_API_KEY
 from polarsen.db import UsageToken
+from polarsen.env import OPENAI_API_KEY
 
-__all__ = ("set_headers", "fetch_chat_completion")
+__all__ = ("fetch_chat_completion", "set_headers")
 
 
 HEADER_KEY = "Authorization"
@@ -80,10 +79,10 @@ async def fetch_chat_completion(
 
     try:
         response.raise_for_status()
-    except niquests.exceptions.HTTPError as e:
+    except niquests.exceptions.HTTPError:
         print(response.headers)
         pprint.pprint(response.json())
-        raise e
+        raise
 
     data = response.json()
     content = data["choices"][0]["message"]["content"]

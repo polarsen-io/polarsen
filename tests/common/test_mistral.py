@@ -7,16 +7,16 @@ import niquests
 import pytest
 
 if typing.TYPE_CHECKING:
-    from mistralai.models import AgentsCompletionRequestTypedDict
+    from mistralai.client.models import AgentsCompletionRequestTypedDict
 else:
     AgentsCompletionRequestTypedDict = typing.Any
 
 from polarsen.common.models.mistral.fetch import (
+    HEADER_KEY,
+    fetch_agent_completion,
     fetch_completion,
     fetch_embeddings,
-    fetch_agent_completion,
     set_headers,
-    HEADER_KEY,
 )
 from polarsen.common.models.utils import TooManyRequestsError
 
@@ -145,7 +145,8 @@ class TestFetchCompletion:
             )
 
         if case.expected_retry_delay is not None:
-            assert getattr(exc_info.value, "retry_delay") == case.expected_retry_delay
+            assert isinstance(exc_info.value, TooManyRequestsError)
+            assert exc_info.value.retry_delay == case.expected_retry_delay
 
 
 class TestFetchEmbeddings:

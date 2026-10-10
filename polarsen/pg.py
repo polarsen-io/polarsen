@@ -3,16 +3,15 @@ import re
 import socket
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager, contextmanager
+from typing import cast
 
 import asyncpg
 
-__all__ = ("get_conn", "get_pool", "DatabaseConnectionError")
+__all__ = ("DatabaseConnectionError", "acquire", "get_conn", "get_pool")
 
 
 class DatabaseConnectionError(Exception):
     """Raised when unable to connect to the database."""
-
-    pass
 
 
 def _sanitize_url(pg_url: str) -> str:
@@ -59,3 +58,10 @@ async def get_pool(pg_url: str) -> AsyncIterator[asyncpg.pool.Pool]:
     with _wrap_db_errors(pg_url):
         async with asyncpg.create_pool(pg_url, init=init_connection) as pool:
             yield pool
+
+
+@asynccontextmanager
+async def acquire(pool: asyncpg.pool.Pool) -> AsyncIterator[asyncpg.Connection]:
+    """Acquire a pool connection typed as a plain Connection (asyncpg's proxy type is opaque to pyright)."""
+    async with pool.acquire() as conn:
+        yield cast(asyncpg.Connection, conn)

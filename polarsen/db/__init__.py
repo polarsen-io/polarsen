@@ -1,2 +1,2 @@
-from .chat import *
 from .ai import *
+from .chat import *

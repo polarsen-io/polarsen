@@ -1,6 +1,8 @@
-import pytest
-from ..utils import clean_pg_fn
 from unittest.mock import AsyncMock
+
+import pytest
+
+from ..utils import clean_pg_fn
 
 
 @pytest.fixture(scope="function", autouse=True)

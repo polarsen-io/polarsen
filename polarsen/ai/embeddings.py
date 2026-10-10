@@ -1,6 +1,7 @@
 import datetime as dt
 import itertools
 from typing import NotRequired, TypedDict
+
 import asyncpg
 from niquests import AsyncSession
 from pydantic import TypeAdapter
@@ -8,15 +9,15 @@ from rich.progress import track
 
 from polarsen.common.models import mistral  # Could be lazy
 from polarsen.common.utils import setup_session_model
-from polarsen.db import Requests, MistralGroupEmbeddings
+from polarsen.db import MistralGroupEmbeddings, Requests
 from polarsen.logs import logs
 
 __all__ = (
-    "gen_embeddings",
     "DEFAULT_EMBEDDING_MODEL",
-    "gen_group_embeddings",
     "EmbeddingGroup",
     "EmbeddingGroupAdapter",
+    "gen_embeddings",
+    "gen_group_embeddings",
     "gen_groups_embeddings",
 )
 

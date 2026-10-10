@@ -1,30 +1,31 @@
 import contextlib
 from collections import namedtuple
+from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
-from typing import AsyncIterator, TypedDict, Callable
+from typing import TypedDict
 
 import niquests
 from niquests import HTTPError
 
 try:
     import botocore.client
-    from botocore.exceptions import ClientError
     import botocore.session
+    from botocore.exceptions import ClientError
 except ImportError as e:
     raise ImportError("botocore is required for S3 operations") from e
 
-from polarsen.utils import get_stream_chunk
 from polarsen import env
 from polarsen.logs import logs
+from polarsen.utils import get_stream_chunk
 
 __all__ = (
-    "s3_file_upload",
-    "s3_delete_object",
     "S3MultipartUpload",
-    "s3_put_object",
-    "s3_get_object",
     "UploadPart",
     "get_s3_client",
+    "s3_delete_object",
+    "s3_file_upload",
+    "s3_get_object",
+    "s3_put_object",
 )
 
 
@@ -105,7 +106,7 @@ async def s3_multipart_upload(
 
         # Extract ETag from response headers
         etag = upload_resp.headers.get("ETag")
-        _part: UploadPart = {"PartNumber": _part_number, "ETag": etag}
+        _part: UploadPart = {"PartNumber": _part_number, "ETag": etag.decode() if isinstance(etag, bytes) else etag}
         _parts.append(_part)
         _part_number += 1
         return _part
@@ -125,11 +126,11 @@ async def s3_multipart_upload(
             generate_presigned_url=_generate_presigned_url,
         )
     except ClientError as e:
-        raise Exception(f"Failed to initiate multipart upload: {e}")
-    except Exception as e:
+        raise RuntimeError(f"Failed to initiate multipart upload: {e}") from e
+    except Exception:
         if not _has_been_aborted and upload_id is not None:
             await fetch_abort()
-        raise e
+        raise
     else:
         if not _has_been_aborted and upload_id is not None:
             await fetch_complete()

@@ -1,12 +1,14 @@
 import json
 from http import HTTPStatus
+from typing import ClassVar
 
 import pytest
-from tracktolib.pg_sync import insert_many, fetch_one
+from tracktolib.pg_sync import fetch_one, insert_many
 
-from tests.data.db import gen_user, gen_chat_upload, load_chat_types
-from .conftest import USERS
+from tests.data.db import gen_chat_upload, gen_user, load_chat_types
+
 from ..utils import generate_large_file
+from .conftest import USERS
 
 FILE_1MB = generate_large_file(1 * 1024 * 1024)
 FILE_6MB = generate_large_file(6 * 1024 * 1024)
@@ -63,7 +65,7 @@ class TestUpload:
 
 
 class TestUsers:
-    _default_user = {
+    _default_user: ClassVar[dict[str, str]] = {
         "telegram_id": "123456789",
     }
 

@@ -1,13 +1,14 @@
 import unittest.mock
+from collections.abc import Callable
 from contextlib import nullcontext
-from typing import NamedTuple, Callable
+from typing import NamedTuple
 
 import psycopg
 import pytest
-from tracktolib.pg_sync import insert_many, fetch_all
+from tracktolib.pg_sync import fetch_all, insert_many
 
 from ..conftest import PG_URL
-from ..data.db import gen_user, gen_chat
+from ..data.db import gen_chat, gen_user
 
 
 def _insert_chat(engine: psycopg.Connection, chat_meta: dict | None = None):

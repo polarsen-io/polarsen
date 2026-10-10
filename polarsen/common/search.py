@@ -1,11 +1,13 @@
 import datetime as dt
-from typing import TypedDict, Callable, Awaitable
+from collections.abc import Awaitable, Callable
+from typing import TypedDict
 
 import asyncpg
 import pydantic
 from niquests import AsyncSession
 
 from polarsen.db import UsageToken
+
 from .models import mistral
 
 type EmbeddingsFn = Callable[[AsyncSession, str | list[str]], Awaitable[tuple[list[list[float]], UsageToken]]]
@@ -96,7 +98,7 @@ async def search_close_messages(
     limit: int = 3,
 ) -> list[CloseEmbedding]:
     embeddings_fn = _EMBEDDINGS_FNS[model_name]
-    embeddings, nb_tokens = await embeddings_fn(session, question)
+    embeddings, _nb_tokens = await embeddings_fn(session, question)
     # fetch_embeddings returns list[list[float]], extract the first embedding
     embedding = embeddings[0]
     results = await conn.fetch(_SEARCH_EMBEDDINGS_QUERY, embedding, limit, chat_id)

@@ -1,20 +1,22 @@
 import asyncio
-import json
-from dataclasses import dataclass
-from typing import overload, Any, Callable, Type
 import functools
+import json
+import random
+from collections.abc import Callable
+from dataclasses import dataclass
+from typing import Any, overload
+
 import niquests
 import pydantic
-import random
 
 from polarsen.logs import logs
 
 __all__ = (
-    "parse_thinking",
-    "parse_json_response",
     "JsonResponseError",
-    "TooManyRequestsError",
     "QuotaExceededError",
+    "TooManyRequestsError",
+    "parse_json_response",
+    "parse_thinking",
     "retry_async",
 )
 
@@ -61,14 +63,14 @@ class JsonResponseError(Exception):
 
 def parse_json_response[T](
     resp: Any, *, thinking_key: str | None = None, model: pydantic.TypeAdapter[T] | None = None
-) -> tuple[list[T] | T | dict | dict, str | None]:
+) -> tuple[list[T] | T | dict, str | None]:
     """
     Parse the JSON response from the AI model.
     """
     thinking_text: str | None = None
 
     if isinstance(resp, str):
-        resp = resp.strip().lstrip("```json").rstrip("```")
+        resp = resp.strip().removeprefix("```json").removesuffix("```")
     if thinking_key is not None:
         _thinking = False
         resp, thinking_text = parse_thinking(resp, key=thinking_key)
@@ -123,9 +125,9 @@ class QuotaExceededError(Exception):
 def check_http_response(resp: niquests.Response) -> dict:
     try:
         resp.raise_for_status()
-    except niquests.HTTPError as e:
+    except niquests.HTTPError:
         logs.error(resp.json())
-        raise e
+        raise
     return resp.json()
 
 
@@ -134,7 +136,7 @@ def retry_async(
     delay: float = 1.0,
     backoff_factor: float = 2.0,
     jitter: bool = True,
-    exceptions: Type[Exception] | tuple[Type[Exception], ...] = (Exception,),
+    exceptions: type[Exception] | tuple[type[Exception], ...] = (Exception,),
     on_retry: Callable[[Exception, int, float], None] | None = None,
     reraise_on_final_attempt: bool = True,
 ):

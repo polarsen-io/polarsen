@@ -1,17 +1,12 @@
-from __future__ import annotations
-
 import datetime as dt
-from typing import TypedDict, TYPE_CHECKING
+from typing import TypedDict
 
 import niquests
+from mistralai.client.models import AssistantMessage, ChatCompletionRequestTypedDict, UserMessage
 
-if TYPE_CHECKING:
-    from mistralai import ChatCompletionRequestTypedDict
-    from mistralai.models import AssistantMessage, UserMessage
+from .fetch import UsageToken, fetch_completion
 
-from .fetch import fetch_completion, UsageToken
-
-__all__ = ("get_request", "get_request_messages", "get_request_messages", "get_messages_completion")
+__all__ = ("get_messages_completion", "get_request", "get_request_messages")
 
 SUMMARY_PROMPT = "I want you to make a short summary (in {lang}) of this messages."
 

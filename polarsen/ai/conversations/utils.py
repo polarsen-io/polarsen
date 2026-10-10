@@ -1,7 +1,8 @@
 import asyncio
 import functools
 import random
-from typing import Any, Callable, Type
+from collections.abc import Callable
+from typing import Any
 
 from polarsen.logs import logs
 
@@ -13,7 +14,7 @@ def retry_async(
     delay: float = 1.0,
     backoff_factor: float = 2.0,
     jitter: bool = True,
-    exceptions: Type[Exception] | tuple[Type[Exception], ...] = (Exception,),
+    exceptions: type[Exception] | tuple[type[Exception], ...] = (Exception,),
     on_retry: Callable[[Exception, int, float], None] | None = None,
     reraise_on_final_attempt: bool = True,
 ):

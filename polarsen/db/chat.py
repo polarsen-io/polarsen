@@ -1,22 +1,23 @@
 import datetime as dt
-from dataclasses import dataclass, field, asdict
+from dataclasses import asdict, dataclass, field
 
 import asyncpg
 from rich.progress import track
-from tracktolib.pg import insert_many, PGConflictQuery, insert_returning
+from tracktolib.pg import PGConflictQuery, insert_many, insert_returning
 
 from polarsen.logs import logs
+
 from .utils import TableID
 
 __all__ = (
-    "DBChatUser",
-    "DBChatMessage",
-    "TelegramTextEntity",
-    "TelegramMessage",
-    "TelegramGroup",
     "CHAT_SOURCE_MAPPING",
-    "DbChat",
     "ChatUpload",
+    "DBChatMessage",
+    "DBChatUser",
+    "DbChat",
+    "TelegramGroup",
+    "TelegramMessage",
+    "TelegramTextEntity",
 )
 
 CHAT_SOURCE_MAPPING = {
@@ -39,7 +40,7 @@ class DBChatUser(TableID):
         return _data
 
     @staticmethod
-    async def bulk_save(conn: asyncpg.Connection, users: list["DBChatUser"]):
+    async def bulk_save(conn: asyncpg.Connection, users: list[DBChatUser]):
         await insert_many(
             conn,
             "general.chat_users",
@@ -66,7 +67,7 @@ class DbChat(TableID):
         return _data
 
     @staticmethod
-    async def bulk_save(conn: asyncpg.Connection, chats: list["DbChat"]):
+    async def bulk_save(conn: asyncpg.Connection, chats: list[DbChat]):
         await insert_many(
             conn, "general.chats", [m.data for m in chats], on_conflict=PGConflictQuery(keys=["internal_code"])
         )
@@ -160,7 +161,7 @@ class DBChatMessage(TableID):
         return _data
 
     @staticmethod
-    async def bulk_save(conn: asyncpg.Connection, messages: list["DBChatMessage"]):
+    async def bulk_save(conn: asyncpg.Connection, messages: list[DBChatMessage]):
         await insert_many(
             conn,
             "general.chat_messages",
@@ -193,11 +194,11 @@ def _fmt_text(text: str | dict | list[str | dict]) -> str:
         return " ".join([_fmt_text(t) for t in text])
 
     if not isinstance(text, dict):
-        raise ValueError(f"Invalid text format: {text}")
+        raise TypeError(f"Invalid text format: {text}")
 
     _text = text.get("text")
     if not isinstance(_text, str):
-        raise ValueError(f"Invalid text format: {_text}")
+        raise TypeError(f"Invalid text format: {_text}")
     return _text
 
 
@@ -238,11 +239,11 @@ class TelegramMessage:
                 text_entities=[TelegramTextEntity(**te) for te in msg["text_entities"]],
                 reply_to_message_id=msg.get("reply_to_message_id"),
             )
-        except (KeyError, TypeError) as e:
+        except KeyError, TypeError:
             import pprint
 
             pprint.pprint(msg)
-            raise e
+            raise
 
     def to_db_message(self, chat_id: int, chat_user_id: int, reply_to_chat_id: int | None = None) -> DBChatMessage:
         return DBChatMessage(
@@ -286,11 +287,11 @@ class TelegramGroup:
 
         try:
             return cls(name=group["name"], group_type=group["type"], group_id=group["id"], messages=messages)
-        except KeyError as e:
+        except KeyError:
             import pprint
 
             pprint.pprint(group)
-            raise e
+            raise
 
     def to_db_chat(self, created_by: int) -> DbChat:
         return DbChat(internal_code=str(self.group_id), name=self.name, created_by=created_by)

@@ -1,23 +1,24 @@
 import datetime as dt
 import unittest.mock
+from collections.abc import Callable
 from contextlib import nullcontext
-from typing import NamedTuple, Callable
+from typing import NamedTuple
 
 import psycopg
 import pytest
-from tracktolib.pg_sync import insert_many, fetch_all
+from tracktolib.pg_sync import fetch_all, insert_many
 
 from ..conftest import PG_URL
 from ..data.db import (
-    gen_user,
+    DEFAULT_DATETIME,
     gen_chat,
-    gen_chat_user,
     gen_chat_message,
-    gen_message_group_method,
+    gen_chat_user,
     gen_message_group,
     gen_message_group_chat,
+    gen_message_group_method,
+    gen_user,
     load_chat_types,
-    DEFAULT_DATETIME,
 )
 
 

@@ -4,23 +4,25 @@ import contextlib
 import datetime as dt
 import json
 import textwrap
+from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import Sequence, TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Literal
 
 import asyncpg
 import niquests
 
 if TYPE_CHECKING:
-    import mistralai.models as mistral_models
+    import mistralai.client.models as mistral_models
     from google.genai import types as genai_types
     from openai.types import chat as openai_types
 
+from polarsen import env
 from polarsen.db import UsageToken
 from polarsen.logs import logs
-from polarsen import env
-from .models import mistral, gemini, openai, grok, self_hosted
+
+from .models import gemini, grok, mistral, openai, self_hosted
 from .models.gemini import is_thinking_only_model
-from .search import search_close_messages, CloseEmbedding
+from .search import CloseEmbedding, search_close_messages
 from .utils import AISource
 
 ASK_SYSTEM_PROMPT = textwrap.dedent("""
@@ -47,10 +49,10 @@ def fmt_summaries(results: list[CloseEmbedding]) -> list[dict]:
 
 
 def fmt_context_message(context: list[dict], user: str) -> str:
-    _cur_date = dt.datetime.now().date().isoformat()
+    _cur_date = dt.datetime.now(dt.UTC).date().isoformat()
     message = f"""
     [CONTEXT]{json.dumps(context)}[/CONTEXT]
-    [DATE]{dt.datetime.now().date().isoformat()}[/DATE]
+    [DATE]{dt.datetime.now(dt.UTC).date().isoformat()}[/DATE]
     [USER]{user}[/USER]
     """
     return textwrap.dedent(message).strip()
@@ -157,7 +159,7 @@ class ChatSession:
 @dataclass
 class MistralChatSession(ChatSession):
     model_name: str
-    messages: list[mistral_models.MessagesTypedDict] = field(default_factory=list)
+    messages: list[mistral_models.ChatCompletionRequestMessageTypedDict] = field(default_factory=list)
 
     def __post_init__(self):
         if not mistral.is_mistral_model(self.model_name):
@@ -176,7 +178,7 @@ class MistralChatSession(ChatSession):
         user: str,
         limit: int = 5,
     ):
-        import mistralai.models as mistral_models
+        import mistralai.client.models as mistral_models
 
         search_results = await self.fetch_close_messages(
             conn=conn,
@@ -195,14 +197,16 @@ class MistralChatSession(ChatSession):
         debug_data = {"results": search_results}
         return response, debug_data
 
-    async def ask(self, session: niquests.AsyncSession, messages: Sequence[mistral_models.MessagesTypedDict]):
-        import mistralai.models as mistral_models
+    async def ask(
+        self, session: niquests.AsyncSession, messages: Sequence[mistral_models.ChatCompletionRequestMessageTypedDict]
+    ):
+        import mistralai.client.models as mistral_models
 
         self.messages += messages
         request = mistral_models.ChatCompletionRequestTypedDict(messages=self.messages, model=self.model_name)
         with set_auth_headers(session, self.api_key, self.model_source):
             resp, token, _ = await mistral.fetch_completion(session, request)
-        self.messages.append(mistral_models.AssistantMessageTypedDict(content=resp))
+        self.messages.append(mistral_models.AssistantMessageTypedDict(role="assistant", content=resp))
         self.set_token(token)
         return resp
 
@@ -297,7 +301,7 @@ class GeminiChatSession(ChatSession):
             thinking_config=genai_types.ThinkingConfig(thinking_budget=0) if disable_thinking else None,
         )
         with set_auth_headers(session, self.api_key, self.model_source):
-            resp, token, payload = await gemini.fetch_completion(
+            resp, token, _payload = await gemini.fetch_completion(
                 session, model=self.model_name, config=config, contents=messages
             )
         self.messages.append(

@@ -1,10 +1,10 @@
+import asyncio
 import os
 
+import asyncpg
 import psycopg
 import pytest
 from minio import Minio
-import asyncio
-import asyncpg
 
 from polarsen.pg import init_connection
 
@@ -38,7 +38,7 @@ def engine():
 @pytest.fixture(scope="session")
 def minio_client():
     client = Minio(
-        endpoint=os.environ["S3_ENDPOINT"].lstrip("http://"),
+        endpoint=os.environ["S3_ENDPOINT"].removeprefix("http://"),
         access_key=os.environ["S3_ACCESS_KEY_ID"],
         secret_key=os.environ["S3_SECRET_ACCESS_KEY"],
         secure=False,

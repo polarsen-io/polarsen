@@ -5,20 +5,22 @@ from pathlib import Path
 from typing import Final
 
 import niquests
-from piou import Option, Derived, CommandGroup
-from polarsen.logs import logs
+from piou import CommandGroup, Derived, Option
+
 from polarsen.ai.conversations import v2
 from polarsen.db.chat import CHAT_SOURCE_MAPPING, TelegramGroup
+from polarsen.logs import logs
 from polarsen.pg import get_conn, get_pool
 from polarsen.s3_utils import get_s3_client
 from polarsen.utils import get_pg_url
+
 from .ingest import process_uploads
 from .listener import (
-    process_chat_worker,
+    DEFAULT_EMBEDDING_MODEL,
     process_chat_groups_worker,
+    process_chat_worker,
     process_embeddings_worker,
     process_stuck_chats_worker,
-    DEFAULT_EMBEDDING_MODEL,
 )
 
 __all__ = ("chat_group",)
@@ -54,19 +56,18 @@ async def _process_uploads(
     """
     Ingest a chat export file into the database
     """
-    async with get_conn(pg_url) as conn:
-        async with niquests.AsyncSession() as session:
-            with get_s3_client() as s3_client:
-                await process_uploads(
-                    client=session,
-                    conn=conn,
-                    s3_client=s3_client,
-                    show_progress=show_progress,
-                )
+    async with get_conn(pg_url) as conn, niquests.AsyncSession() as session:
+        with get_s3_client() as s3_client:
+            await process_uploads(
+                client=session,
+                conn=conn,
+                s3_client=s3_client,
+                show_progress=show_progress,
+            )
 
 
-DEFAULT_NB_WORKERS: Final[int] = int(os.getenv("NB_WORKERS", 10))
-SLEEP_NO_DATA: Final[int] = int(os.getenv("SLEEP_NO_DATA", 5))  # seconds to sleep when no data is found
+DEFAULT_NB_WORKERS: Final[int] = int(os.getenv("NB_WORKERS", "10"))
+SLEEP_NO_DATA: Final[int] = int(os.getenv("SLEEP_NO_DATA", "5"))  # seconds to sleep when no data is found
 
 
 @chat_group.command("listen-uploads")
@@ -112,18 +113,17 @@ async def _listen_chat_groups(
     logs.info(f"Starting segmentation listeners with model {model_name!r} and params: {params}")
     logs.info(f"Starting embeddings listeners with model {embedding_model_name!r}")
 
-    async with get_pool(pg_url) as pool:
-        async with asyncio.TaskGroup() as tg:
-            # Single worker to reset stuck chats
-            tg.create_task(process_stuck_chats_worker(pool, debug=debug, threshold_minutes=stuck_threshold))
+    async with get_pool(pg_url) as pool, asyncio.TaskGroup() as tg:
+        # Single worker to reset stuck chats
+        tg.create_task(process_stuck_chats_worker(pool, debug=debug, threshold_minutes=stuck_threshold))
 
-            for worker_id in range(nb_workers):
-                tg.create_task(
-                    process_chat_groups_worker(pool, sleep_no_data=sleep_no_data, worker_id=worker_id, params=params)
+        for worker_id in range(nb_workers):
+            tg.create_task(
+                process_chat_groups_worker(pool, sleep_no_data=sleep_no_data, worker_id=worker_id, params=params)
+            )
+        for worker_id in range(nb_workers):
+            tg.create_task(
+                process_embeddings_worker(
+                    pool, sleep_no_data=sleep_no_data, worker_id=worker_id, embedding_model=embedding_model_name
                 )
-            for worker_id in range(nb_workers):
-                tg.create_task(
-                    process_embeddings_worker(
-                        pool, sleep_no_data=sleep_no_data, worker_id=worker_id, embedding_model=embedding_model_name
-                    )
-                )
+            )

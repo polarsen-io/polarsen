@@ -3,10 +3,11 @@ name = "polarsen"
 version = "0.1.1-rc.17"
 description = ""
 readme = "README.md"
-requires-python = ">=3.13"
+requires-python = ">=3.14"
 authors = [{ name = "Julien Brayere", email = "julien.brayere@polarsen.io" }]
 license-files = ["LICENSE.md"]
-license = "FSL-1.1-ALv2"
+# Commented out to avoid issues with license detection tools like uv
+#license = "FSL-1.1-ALv2"
 
 #default-groups = "all"
 
@@ -21,7 +22,6 @@ dev = [
     "pytest-cov>=6.2.1",
     "minio>=7.2.16",
     "faker>=37.6.0",
-    "tracktolib>=0.57.0",
     "pre-commit>=4.3.0",
     "deepdiff>=8.6.1",
     {include-group = "default"},
@@ -35,9 +35,8 @@ dev = [
 default = [
     "asyncpg>=0.30.0",
     "piou>=0.21.0",
-    "niquests>=3.15.2",
-    "tracktolib>=0.55.0",
-    "urllib3-future>=2.14.902",
+    "niquests>=3.16.0",
+    "tracktolib>=0.74.0",
     "cryptography>=43.0.0",
 ]
 
@@ -74,11 +73,14 @@ cli = [
     "sentry-sdk>=2.32.0",
 ]
 
+[tool.uv]
+exclude-newer = "5 days"
+
 [tool.pyright]
 include = ["polarsen", "tests"]
 exclude = []
 
-pythonVersion = "3.13"
+pythonVersion = "3.14"
 pythonPlatform = "Linux"
 
 [tool.pytest.ini_options]
@@ -94,10 +96,20 @@ filterwarnings = [
 
 [tool.ruff]
 line-length = 120
-target-version = "py312"
+target-version = "py314"
 
+[tool.ruff.lint]
+extend-select = ["G"]
+ignore = [
+    # piou Option()/FastAPI Depends() defaults are the framework pattern
+    "B008",
+    # worker loops deliberately catch Exception and log
+    "BLE001",
+]
 
 [tool.ruff.lint.per-file-ignores]
+# naive datetimes match the timestamp columns in test fixtures
+"tests/**" = ["DTZ001"]
 "__init__.py" = [
     # imported but unused
     "F401",

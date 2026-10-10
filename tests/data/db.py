@@ -1,6 +1,7 @@
 import datetime as dt
+from collections.abc import Mapping, Sequence
 from types import EllipsisType
-from typing import TypedDict, NotRequired, Sequence, Mapping, Any, TypeIs, overload, Literal
+from typing import Any, Literal, NotRequired, TypedDict, TypeIs, overload
 
 import psycopg
 from tracktolib.pg_sync import fetch_all
@@ -8,29 +9,29 @@ from tracktolib.pg_sync import fetch_all
 from .utils import Fake
 
 __all__ = (
-    "User",
-    "gen_user",
-    "ChatType",
-    "gen_chat_type",
-    "load_chat_types",
-    "Chat",
-    "gen_chat",
-    "ChatUser",
-    "gen_chat_user",
-    "gen_telegram_group",
-    "gen_chat_upload",
-    "ChatUpload",
-    "ChatMessage",
-    "gen_chat_message",
-    "MessageGroupMethod",
-    "gen_message_group_method",
-    "MessageGroup",
-    "gen_message_group",
-    "MessageGroupChat",
-    "gen_message_group_chat",
-    "MistralGroupEmbedding",
-    "gen_mistral_group_embedding",
     "DEFAULT_DATETIME",
+    "Chat",
+    "ChatMessage",
+    "ChatType",
+    "ChatUpload",
+    "ChatUser",
+    "MessageGroup",
+    "MessageGroupChat",
+    "MessageGroupMethod",
+    "MistralGroupEmbedding",
+    "User",
+    "gen_chat",
+    "gen_chat_message",
+    "gen_chat_type",
+    "gen_chat_upload",
+    "gen_chat_user",
+    "gen_message_group",
+    "gen_message_group_chat",
+    "gen_message_group_method",
+    "gen_mistral_group_embedding",
+    "gen_telegram_group",
+    "gen_user",
+    "load_chat_types",
 )
 
 type NotSet = EllipsisType

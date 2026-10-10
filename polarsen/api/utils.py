@@ -5,15 +5,15 @@ from typing import Any
 import asyncpg
 from pydantic import TypeAdapter
 
-from .models import Chat, User, ChatUpload
+from .models import Chat, ChatUpload, User
 
 __all__ = (
-    "coerce_str_to_int",
     "APIException",
     "ErrorCode",
+    "check_32_bit",
+    "coerce_str_to_int",
     "get_user",
     "get_user_chats",
-    "check_32_bit",
 )
 
 
@@ -55,9 +55,7 @@ class ErrorCode(Enum):
     # Files
     invalid_file = "invalid_file"
     not_found = "not_found"
-    #
     forbidden = "forbidden"
-    #
     timeout = "timeout"
     payment_error = "payment_error"
     # Email

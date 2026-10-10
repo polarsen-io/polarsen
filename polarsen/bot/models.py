@@ -6,7 +6,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Literal, NotRequired, Optional, TypedDict, Union
+from typing import Any, Literal, NotRequired, TypedDict
 
 
 class AIModel(TypedDict):
@@ -17,7 +17,7 @@ class AIModel(TypedDict):
 class Chat(TypedDict):
     id: int
     name: str
-    cutoff_date: Optional[str]
+    cutoff_date: str | None
 
 
 class ChatUpload(TypedDict):
@@ -26,7 +26,7 @@ class ChatUpload(TypedDict):
     file_path: str
     created_at: str
     chat_type: str
-    processed_at: Optional[str]
+    processed_at: str | None
 
 
 class EmbeddingResult(TypedDict):
@@ -38,26 +38,26 @@ class EmbeddingResult(TypedDict):
 
 class Status(TypedDict):
     status: str
-    message: Optional[str]
+    message: str | None
 
 
 class User(TypedDict):
     id: int
-    first_name: Optional[str]
-    last_name: Optional[str]
+    first_name: str | None
+    last_name: str | None
     chats: list[Chat]
-    api_keys: Optional[dict[str, str]]
-    meta: Optional[dict[str, Any]]
+    api_keys: dict[str, str] | None
+    meta: dict[str, Any] | None
     uploads: list[ChatUpload]
 
 
 class UserMeta(TypedDict):
-    selected_model: NotRequired[Optional[str]]
-    selected_chat_id: NotRequired[Optional[int]]
+    selected_model: NotRequired[str | None]
+    selected_chat_id: NotRequired[int | None]
 
 
 class ValidationError(TypedDict):
-    loc: list[Union[str, int]]
+    loc: list[str | int]
     msg: str
     type: str
 
@@ -74,7 +74,7 @@ class HTTPValidationError(TypedDict):
 
 class NewUser(TypedDict):
     telegram_id: str
-    first_name: NotRequired[Optional[str]]
-    last_name: NotRequired[Optional[str]]
-    meta: NotRequired[Optional[UserMeta]]
-    api_keys: NotRequired[Optional[dict[str, str]]]
+    first_name: NotRequired[str | None]
+    last_name: NotRequired[str | None]
+    meta: NotRequired[UserMeta | None]
+    api_keys: NotRequired[dict[str, str] | None]

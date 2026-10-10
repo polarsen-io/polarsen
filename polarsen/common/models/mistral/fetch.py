@@ -1,14 +1,12 @@
-from __future__ import annotations
-
 from typing import TYPE_CHECKING, Any
 
 import niquests
 
 if TYPE_CHECKING:
-    from mistralai.models import (
+    from mistralai.client.models import (
         AgentsCompletionRequestTypedDict,
-        EmbeddingRequestTypedDict,
         ChatCompletionRequestTypedDict,
+        EmbeddingRequestTypedDict,
     )
 else:
     EmbeddingRequestTypedDict = dict
@@ -16,16 +14,18 @@ else:
     AgentsCompletionRequestTypedDict = dict
 
 from http import HTTPStatus
+
 from polarsen.db import UsageToken
 from polarsen.env import MISTRAL_API_KEY
+
 from ..utils import TooManyRequestsError
 
 __all__ = (
+    "UsageToken",
+    "fetch_agent_completion",
     "fetch_completion",
     "fetch_embeddings",
-    "UsageToken",
     "set_headers",
-    "fetch_agent_completion",
 )
 
 
@@ -46,7 +46,7 @@ def _check_resp(resp: niquests.Response) -> dict:
     except niquests.exceptions.HTTPError as e:
         if resp.status_code == HTTPStatus.TOO_MANY_REQUESTS:
             raise TooManyRequestsError(retry_delay=-1, response=resp) from e
-        raise e
+        raise
     return resp.json()
 
 
@@ -62,7 +62,7 @@ async def fetch_completion(
 
     content = data["choices"][0]["message"]["content"]
     if isinstance(content, list):
-        content = [x for x in content if x["type"] == "text"][0]["text"]
+        content = next(x for x in content if x["type"] == "text")["text"]
         # thinking_content = [x for x in content if x['type'] == 'thinking'][0]['thinking']
     usage_token: UsageToken = {
         "total": data["usage"]["total_tokens"],

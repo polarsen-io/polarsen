@@ -3,8 +3,7 @@ import logging
 import os
 
 import uvicorn
-from piou import CommandGroup
-from piou import Option, Derived
+from piou import CommandGroup, Derived, Option
 
 __all__ = ("api_group",)
 

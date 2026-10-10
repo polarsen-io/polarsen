@@ -6,31 +6,31 @@ from typing import TypeGuard
 import telegram.error
 from niquests import AsyncSession
 from telegram import (
-    Update,
-    ReplyKeyboardMarkup,
-    InlineKeyboardButton,
-    KeyboardButton,
-    MenuButton,
-    InlineKeyboardMarkup,
-    MaybeInaccessibleMessage,
-    Message,
     BotCommand,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    KeyboardButton,
+    MaybeInaccessibleMessage,
+    MenuButton,
+    Message,
+    ReplyKeyboardMarkup,
+    Update,
 )
 from telegram.ext import (
     ApplicationBuilder,
+    CallbackQueryHandler,
     CommandHandler,
     ContextTypes,
     MessageHandler,
     filters,
-    CallbackQueryHandler,
 )
 
 from polarsen.logs import logs
+
 from .data import User, UserState, ask_question, give_feedback, upload_chat
 from .env import API_URI
 from .intl import TranslateFn, i18n
-from .models import Chat, ChatUpload
-from .models import EmbeddingResult
+from .models import Chat, ChatUpload, EmbeddingResult
 from .utils import handle_errors
 
 
@@ -533,9 +533,8 @@ async def run_bot(token: str, shutdown_event: asyncio.Event) -> None:
         MessageHandler(filters.Document.MimeType("application/json"), handle_file_upload),  # Handle document uploads
     ]
     for handler in handlers:
-        if isinstance(handler, CommandHandler):
-            if not (handler.commands & _COMMAND_NAMES):
-                raise ValueError(f"Could not find command {handler.commands} in _COMMAND_NAMES")
+        if isinstance(handler, CommandHandler) and not (handler.commands & _COMMAND_NAMES):
+            raise ValueError(f"Could not find command {handler.commands} in _COMMAND_NAMES")
 
     for _handler in handlers:
         app.add_handler(_handler)
