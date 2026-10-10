@@ -17,6 +17,11 @@ repos:
         files: ^polarsen/api/(main|models)/.*\.py$
         stages: [pre-commit]
         verbose: true
+      - id: hadolint
+        name: Lint Dockerfiles
+        language: docker_image
+        entry: ghcr.io/hadolint/hadolint:v2.15.1 hadolint
+        files: (^|/)([^/]+\.)?Dockerfile$
       - id: update-pr-notes
         name: Update PR with Release Notes
         entry: bash bin/update-pr-notes.sh

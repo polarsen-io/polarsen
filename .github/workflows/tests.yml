@@ -12,6 +12,15 @@ jobs:
         - name: Checkout
           uses: actions/checkout@v5
 
+        - name: Run hadolint
+          uses: hadolint/hadolint-action@06be81baf89a55ffd0e24b8f04a4185738dd3387 # v3.5.0
+          with:
+            dockerfile: "*Dockerfile"
+            recursive: true
+
+        - name: Run BuildKit checks
+          run: for f in infra/*.Dockerfile; do docker buildx build --check -f "$f" .; done
+
         - name: Run ruff
           uses: astral-sh/ruff-action@57714a7c8a2e59f32539362ba31877a1957dded1 # v3.5.1
           with:

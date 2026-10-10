@@ -8,6 +8,7 @@ WORKDIR /app
 ENV UV_SYSTEM_PYTHON=1
 ENV UV_PROJECT_ENVIRONMENT=/usr/local
 
+ARG PROJECT_MODE
 ARG UV_PARAMS="--only-group default --only-group llms --only-group cli"
 
 RUN apk add --no-cache \
@@ -23,13 +24,13 @@ RUN --mount=type=cache,target=/root/.cache/uv,id=uv-${PROJECT_MODE} \
     uv sync --locked --no-install-project --no-dev ${UV_PARAMS}
 
 # Copy project files
-ADD pyproject.toml uv.lock ./
+COPY pyproject.toml uv.lock ./
 
 # Install the project to system Python
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --locked --no-dev ${UV_PARAMS}
 
-FROM rg.fr-par.scw.cloud/polarsen/psql:18-alpine as pg
+FROM rg.fr-par.scw.cloud/polarsen/psql:18-alpine AS pg
 FROM python:3.15-rc-alpine AS main
 
 ARG VERSION
@@ -55,8 +56,9 @@ COPY --from=pg /usr/local/bin/dropdb /usr/local/bin/dropdb
 COPY --from=pg /usr/local/bin/createdb /usr/local/bin/createdb
 COPY --from=pg /usr/local/lib/libpq.* /usr/local/lib/
 
-ADD polarsen/ polarsen/
-ADD sql/ sql/
+WORKDIR /
+COPY polarsen/ polarsen/
+COPY sql/ sql/
 
 USER user
 

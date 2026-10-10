@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1.4
 # check=error=true
 # TODO: drop -rc once 3.15 final images are published
-FROM ghcr.io/astral-sh/uv:python3.15-rc-alpine as builder
+FROM ghcr.io/astral-sh/uv:python3.15-rc-alpine AS builder
 
 # Install system packages as root
 RUN apk add --no-cache \

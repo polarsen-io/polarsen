@@ -1,0 +1,4 @@
+failure-threshold: warning
+ignored:
+  # alpine drops old package versions, so pinned apk installs break builds
+  - DL3018

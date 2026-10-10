@@ -8,6 +8,7 @@ WORKDIR /app
 ENV UV_SYSTEM_PYTHON=1
 ENV UV_PROJECT_ENVIRONMENT=/usr/local
 
+ARG PROJECT_MODE
 ARG UV_PARAMS="--only-group default --only-group llms --only-group api"
 
 RUN apk add --no-cache \
@@ -23,7 +24,7 @@ RUN --mount=type=cache,target=/root/.cache/uv,id=uv-${PROJECT_MODE} \
     uv sync --locked --no-install-project --no-dev ${UV_PARAMS}
 
 # Copy project files
-ADD pyproject.toml uv.lock ./
+COPY pyproject.toml uv.lock ./
 
 # Install the project to system Python
 RUN --mount=type=cache,target=/root/.cache/uv \
@@ -46,7 +47,8 @@ RUN apk add --no-cache libgcc
 COPY --from=builder /usr/local/lib/python3.15/site-packages/ /usr/local/lib/python3.15/site-packages/
 COPY --from=builder /usr/local/bin/ /usr/local/bin/
 
-ADD polarsen/ polarsen/
+WORKDIR /
+COPY polarsen/ polarsen/
 
 USER user
 
