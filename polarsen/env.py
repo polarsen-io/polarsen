@@ -24,6 +24,10 @@ GROK_API_KEY = os.environ.get("GROK_API_KEY")
 # Self-Hosted OpenAI
 SCALEWAY_API_KEY = os.environ.get("SCALEWAY_API_KEY")
 
+# Application-level encryption for secrets stored in the DB (BYOK API keys).
+# Generate with: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+POLARSEN_KMS_KEY = os.environ.get("POLARSEN_KMS_KEY")
+
 # S3
 
 CHAT_UPLOADS_S3_BUCKET = os.getenv("CHAT_UPLOADS_S3_BUCKET")
