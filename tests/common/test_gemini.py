@@ -4,11 +4,16 @@ from unittest.mock import AsyncMock, MagicMock
 
 import niquests
 import pytest
+from google.genai.types import JobState
 
 from polarsen.common.models.gemini.fetch import (
     HEADER_KEY,
+    _batch_job_from_mldev,
     _parse_retry_delay,
+    cancel_batch_job,
     fetch_completion,
+    get_batch_job,
+    list_batch_jobs,
     set_headers,
 )
 from polarsen.common.models.utils import QuotaExceededError, TooManyRequestsError
@@ -231,3 +236,93 @@ class TestFetchCompletion:
         if case.check_body:
             assert isinstance(exc_info.value, QuotaExceededError)
             assert exc_info.value.body == case.response_data
+
+
+class TestBatchJobFromMldev:
+    @pytest.mark.parametrize(
+        "raw_state,expected",
+        [
+            pytest.param("BATCH_STATE_PENDING", JobState.JOB_STATE_PENDING, id="pending"),
+            pytest.param("BATCH_STATE_RUNNING", JobState.JOB_STATE_RUNNING, id="running"),
+            pytest.param("BATCH_STATE_SUCCEEDED", JobState.JOB_STATE_SUCCEEDED, id="succeeded"),
+            pytest.param("BATCH_STATE_CANCELLED", JobState.JOB_STATE_CANCELLED, id="cancelled"),
+            pytest.param("JOB_STATE_FAILED", JobState.JOB_STATE_FAILED, id="already_job_state_passthrough"),
+            pytest.param(None, JobState.JOB_STATE_UNSPECIFIED, id="missing_state"),
+        ],
+    )
+    def test_maps_state(self, raw_state, expected):
+        metadata = {} if raw_state is None else {"state": raw_state}
+
+        assert _batch_job_from_mldev({"name": "batches/1", "metadata": metadata}).state == expected
+
+    @pytest.mark.parametrize(
+        "output,expected_file,expected_inlined",
+        [
+            pytest.param({}, None, [], id="no_output"),
+            pytest.param({"responsesFile": "files/abc"}, "files/abc", [], id="responses_file"),
+            pytest.param(
+                {"inlinedResponses": {"inlinedResponses": [{"metadata": {"key": "2024-01-01"}, "response": {}}]}},
+                None,
+                [{"metadata": {"key": "2024-01-01"}, "response": {}}],
+                id="inlined_keep_metadata_key",
+            ),
+        ],
+    )
+    def test_reads_output(self, output, expected_file, expected_inlined):
+        job = _batch_job_from_mldev(
+            {"name": "batches/1", "metadata": {"state": "BATCH_STATE_SUCCEEDED", "output": output}}
+        )
+
+        assert job.responses_file == expected_file
+        assert job.inlined_responses == expected_inlined
+
+
+class TestBatchJobPrefix:
+    @pytest.mark.parametrize(
+        "func,verb,job_name,expected_url",
+        [
+            pytest.param(get_batch_job, "get", "123", "batches/123", id="get_adds_prefix"),
+            pytest.param(get_batch_job, "get", "batches/123", "batches/123", id="get_keeps_prefix"),
+            pytest.param(cancel_batch_job, "post", "123", "batches/123:cancel", id="cancel_adds_prefix"),
+            pytest.param(cancel_batch_job, "post", "batches/123", "batches/123:cancel", id="cancel_keeps_prefix"),
+        ],
+    )
+    def test_prefix(self, loop, func, verb, job_name, expected_url):
+        session = AsyncMock(spec=niquests.AsyncSession)
+        resp = MagicMock()
+        resp.json.return_value = {"name": "batches/123", "metadata": {}}
+        getattr(session, verb).return_value = resp
+
+        loop.run_until_complete(func(session, job_name))
+
+        getattr(session, verb).assert_called_once_with(
+            f"https://generativelanguage.googleapis.com/v1beta/{expected_url}"
+        )
+
+
+class TestListBatchJobs:
+    @pytest.mark.parametrize(
+        "kwargs,expected_params",
+        [
+            pytest.param({}, {"pageSize": "10"}, id="default"),
+            pytest.param({"page_size": 200}, {"pageSize": "100"}, id="capped_at_100"),
+            pytest.param({"page_token": "tok"}, {"pageSize": "10", "pageToken": "tok"}, id="page_token"),
+        ],
+    )
+    def test_params_and_result(self, loop, kwargs, expected_params):
+        session = AsyncMock(spec=niquests.AsyncSession)
+        resp = MagicMock()
+        resp.json.return_value = {
+            "operations": [{"name": "batches/1", "metadata": {"state": "BATCH_STATE_RUNNING"}}],
+            "nextPageToken": "next",
+        }
+        session.get.return_value = resp
+
+        jobs, next_token = loop.run_until_complete(list_batch_jobs(session, **kwargs))
+
+        session.get.assert_called_once_with(
+            "https://generativelanguage.googleapis.com/v1beta/batches", params=expected_params
+        )
+        assert [j.name for j in jobs] == ["batches/1"]
+        assert jobs[0].state == JobState.JOB_STATE_RUNNING
+        assert next_token == "next"

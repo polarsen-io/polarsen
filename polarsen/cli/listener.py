@@ -6,11 +6,13 @@ import asyncpg
 import botocore.client
 import msgspec
 import niquests
+from google.genai.types import JobState
 
 from polarsen.ai.conversations import v2
 from polarsen.ai.embeddings import DEFAULT_EMBEDDING_MODEL, EmbeddingGroup, gen_groups_embeddings
+from polarsen.common.models import gemini
 from polarsen.common.utils import AISource, get_source_from_model
-from polarsen.db import DbChat, MessageGroup
+from polarsen.db import BatchJob, DbChat, MessageGroup, User
 from polarsen.db.crypto import decrypt_secret
 from polarsen.logs import logs, set_worker_logger
 from polarsen.pg import acquire
@@ -22,6 +24,7 @@ __all__ = (
     "process_chat_groups_worker",
     "process_chat_worker",
     "process_embeddings_worker",
+    "process_gemini_batch_worker",
     "process_stuck_chats_worker",
 )
 
@@ -164,6 +167,10 @@ async def process_chat_groups_worker(
     set_worker_logger(worker_id, "ChatGroupWorker")
     _model_name = params.get("model_name")
     _source = get_source_from_model(_model_name)
+    if params.get("batch", False) and _source != "gemini":
+        logs.warning("Batch processing is only supported for Gemini models. Disabling batch mode.")
+        params["batch"] = False
+
     async with acquire(pool) as conn, niquests.AsyncSession(timeout=timeout) as session:
         logs.debug("Starting work loop")
         _processing_ids: set[int] | None = None
@@ -303,3 +310,131 @@ async def process_embeddings_worker(
                 logs.debug(f"Caught an exception, resetting {len(_processing_ids)}")
                 await MessageGroup.reset_processing(conn, list(_processing_ids))
             raise
+
+
+async def process_gemini_batch_worker(
+    pool: asyncpg.pool.Pool,
+    worker_id: int = 0,
+    sleep_interval: int = 300,  # 5 minutes
+    timeout: int = 60,
+    run_forever: bool = True,
+    debug: bool = False,
+):
+    """
+    Worker to poll Gemini batch jobs for completion and process results.
+
+    This worker:
+    1. Fetches pending/running Gemini batch jobs from the database
+    2. Polls the Gemini API for each job's status (using the user's API key)
+    3. Processes completed jobs using v2.process_gemini_batch_result
+    4. Marks jobs as completed or failed in the database
+
+    Args:
+        pool: Database connection pool
+        worker_id: Worker ID for logging
+        sleep_interval: Seconds to sleep between polling cycles (default: 5 minutes)
+        timeout: HTTP request timeout in seconds
+        run_forever: If False, exit after one polling cycle
+        debug: If True, re-raise exceptions for debugging
+    """
+    set_worker_logger(worker_id, "GeminiBatchWorker")
+    logs.info(f"Starting Gemini batch worker (poll interval: {sleep_interval}s)")
+
+    async with acquire(pool) as conn, niquests.AsyncSession(timeout=timeout) as session:
+        while True:
+            HEALTH_FILE.touch()
+
+            try:
+                pending_jobs = await BatchJob.get_pending_gemini_jobs(conn)
+                if pending_jobs:
+                    logs.info(f"Found {len(pending_jobs)} pending Gemini batch job(s)")
+
+                for job_record in pending_jobs:
+                    batch_job = BatchJob.from_record(job_record)
+                    job_name = batch_job.gemini_job_name
+
+                    if not job_name:
+                        logs.warning(f"Batch job {batch_job._id} has no gemini_job_name, skipping")
+                        continue
+
+                    # Get user's API key
+                    api_keys = await User.get_api_keys(conn, batch_job.user_id)
+                    api_key = api_keys.get("gemini") if api_keys else None
+                    if not api_key:
+                        logs.warning(f"User {batch_job.user_id} has no Gemini API key, skipping job {job_name}")
+                        continue
+
+                    # Set the user's API key for this request
+                    gemini.set_headers(session, api_key)
+
+                    logs.debug(f"Checking status of Gemini job: {job_name}")
+
+                    try:
+                        gemini_job = await gemini.get_batch_job(session, job_name)
+                    except Exception as e:
+                        logs.error(f"Error fetching Gemini job {job_name}: {e}")
+                        continue
+
+                    # Check if job is still running
+                    if gemini_job.state in (
+                        JobState.JOB_STATE_PENDING,
+                        JobState.JOB_STATE_QUEUED,
+                        JobState.JOB_STATE_RUNNING,
+                    ):
+                        logs.debug(f"Job {job_name} still in progress: {gemini_job.state}")
+                        # Update to running if it was pending
+                        if batch_job.status == "pending":
+                            await batch_job.start(conn)
+                        continue
+
+                    # Job is done
+                    if gemini_job.state == JobState.JOB_STATE_SUCCEEDED:
+                        logs.info(f"Job {job_name} completed successfully, processing results")
+
+                        # Get inlined responses from the completed job
+                        inlined_responses = gemini_job.inlined_responses
+                        if not inlined_responses:
+                            logs.error(f"Job {job_name} has no inlined responses")
+                            await batch_job.mark_failed(conn, "No inlined responses in completed job")
+                            continue
+
+                        try:
+                            (
+                                nb_messages,
+                                nb_discussions,
+                                nb_input_tokens,
+                                nb_output_tokens,
+                            ) = await v2.process_gemini_batch_result(conn, batch_job, inlined_responses)
+                            await batch_job.mark_completed(conn)
+                            logs.info(
+                                f"Job {job_name} processed: {nb_messages} messages, "
+                                f"{nb_discussions} discussions, "
+                                f"{nb_input_tokens} input tokens, {nb_output_tokens} output tokens"
+                            )
+                        except Exception as e:
+                            logs.error(f"Error processing results for job {job_name}: {e}")
+                            await batch_job.mark_failed(conn, str(e))
+                            if debug:
+                                raise
+
+                    elif gemini_job.state in (
+                        JobState.JOB_STATE_FAILED,
+                        JobState.JOB_STATE_CANCELLED,
+                        JobState.JOB_STATE_EXPIRED,
+                    ):
+                        error_msg = str(gemini_job.error) if gemini_job.error else f"Job state: {gemini_job.state}"
+                        logs.warning(f"Job {job_name} failed: {error_msg}")
+                        await batch_job.mark_failed(conn, error_msg)
+
+                    else:
+                        logs.warning(f"Job {job_name} in unexpected state: {gemini_job.state}")
+
+            except Exception as e:
+                logs.error(f"Error in Gemini batch worker loop: {e}")
+                if debug:
+                    raise
+
+            if not run_forever:
+                break
+
+            await asyncio.sleep(sleep_interval)

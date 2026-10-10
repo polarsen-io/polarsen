@@ -1,6 +1,5 @@
-from __future__ import annotations
-
 import datetime as dt
+import itertools
 import json
 import time
 import uuid
@@ -8,22 +7,37 @@ from collections.abc import Iterable
 from typing import TYPE_CHECKING, Literal, NotRequired, TypedDict, Unpack, cast
 
 import asyncpg
-import msgspec
 
 if TYPE_CHECKING:
     from niquests import AsyncSession
     from openai.types import chat as openai_chat_types
 
+import msgspec
 from mistralai.client import models as mistral_models
 from rich.progress import track
 
 from polarsen.common.models import gemini, grok, mistral, openai
 from polarsen.common.models.utils import parse_json_response
 from polarsen.common.utils import AISource, setup_session_model
-from polarsen.db import GroupMethod, MessageGroup, MessageGroupChat, Requests, UsageToken, get_unique_identifier
+from polarsen.db import (
+    BatchJob,
+    GroupMethod,
+    MessageGroup,
+    MessageGroupChat,
+    Requests,
+    UsageToken,
+    get_unique_identifier,
+)
 from polarsen.logs import logs
 
-__all__ = ("SEGMENTATION_MODEL", "MessageLite", "ParamsV2", "apply_conversation_segmentation", "get_messages_by_dates")
+__all__ = (
+    "SEGMENTATION_MODEL",
+    "MessageLite",
+    "ParamsV2",
+    "apply_conversation_segmentation",
+    "get_messages_by_dates",
+    "process_gemini_batch_result",
+)
 
 GROUPING_V2 = GroupMethod(name="v2", internal_code="v2")
 
@@ -159,6 +173,47 @@ async def _fetch_mistral_segmentation(
     return resp, token, cast(dict, payload)
 
 
+def _prepare_gemini_contents(
+    messages: list[MessageLite],
+    users: dict,
+):
+    """
+    Prepare Gemini content objects for segmentation.
+    """
+    from google.genai.types import Content, Part
+
+    return [
+        Content(
+            role="user",
+            parts=[
+                Part.from_text(text="[MESSAGES]" + json.dumps(messages) + "[/MESSAGES]"),
+                Part.from_text(text="[USERS]" + json.dumps(users) + "[/USERS]"),
+            ],
+        )
+    ]
+
+
+def _prepare_gemini_config(
+    lang: str,
+    temperature: float | None = None,
+    seed: int | None = 2604,
+    disable_thinking: bool = True,
+):
+    """
+    Prepare Gemini config for segmentation.
+    """
+    from google.genai.types import Content, GenerateContentConfig, Part, ThinkingConfig
+
+    return GenerateContentConfig(
+        temperature=temperature,
+        seed=seed,
+        system_instruction=Content(
+            parts=[Part.from_text(text=_PROMPT.format(lang=lang, nb_min_messages=NB_MIN_MESSAGES))],
+        ),
+        thinking_config=ThinkingConfig(thinking_budget=0) if disable_thinking else None,
+    )
+
+
 async def _fetch_gemini_segmentation(
     session: AsyncSession,
     messages: list[MessageLite],
@@ -170,27 +225,10 @@ async def _fetch_gemini_segmentation(
     disable_thinking: bool = True,
 ):
     """
-    Fetch conversation segmentation from the Mistral model.
+    Fetch conversation segmentation from the Gemini model.
     """
-    from google.genai.types import Content, GenerateContentConfig, Part, ThinkingConfig
-
-    config = GenerateContentConfig(
-        temperature=temperature,
-        seed=seed,
-        system_instruction=Content(
-            parts=[Part.from_text(text=_PROMPT.format(lang=lang, nb_min_messages=NB_MIN_MESSAGES))],
-        ),
-        thinking_config=ThinkingConfig(thinking_budget=0) if disable_thinking else None,
-    )
-    contents = [
-        Content(
-            role="user",
-            parts=[
-                Part.from_text(text="[MESSAGES]" + json.dumps(messages) + "[/MESSAGES]"),
-                Part.from_text(text="[USERS]" + json.dumps(users) + "[/USERS]"),
-            ],
-        )
-    ]
+    config = _prepare_gemini_config(lang, temperature, seed, disable_thinking)
+    contents = _prepare_gemini_contents(messages, users)
 
     resp, token, payload = await gemini.fetch_completion(session, model=model_name, contents=contents, config=config)
     return resp, token, payload
@@ -348,6 +386,258 @@ class ParamsV2(TypedDict):
     model_name: NotRequired[str]
     agent_name: NotRequired[str]
     disable_thinking: NotRequired[bool]
+    batch: NotRequired[bool]
+
+
+class _DayData(TypedDict):
+    """Data for a single day's batch processing."""
+
+    day: dt.date
+    messages: list[MessageLite]
+    ids: set[int]
+    users: dict
+    nb_messages: int
+
+
+def _serialize_days_data(days_data: list[_DayData]) -> list[dict]:
+    """Serialize days_data for storage in BatchJob meta (sets -> lists)."""
+    return [
+        {
+            "day": dd["day"].isoformat(),
+            "messages": dd["messages"],
+            "ids": list(dd["ids"]),
+            "users": dd["users"],
+            "nb_messages": dd["nb_messages"],
+        }
+        for dd in days_data
+    ]
+
+
+def _deserialize_days_data(data: list[dict]) -> list[_DayData]:
+    """Deserialize days_data from BatchJob meta (lists -> sets)."""
+    return [
+        {
+            "day": dt.date.fromisoformat(dd["day"]),
+            "messages": dd["messages"],
+            "ids": set(dd["ids"]),
+            "users": dd["users"],
+            "nb_messages": dd["nb_messages"],
+        }
+        for dd in data
+    ]
+
+
+async def _run_group_messages_batch_gemini(
+    conn: asyncpg.Connection,
+    session: AsyncSession,
+    chat_id: int,
+    user_id: int,
+    model_name: str,
+    method_id: int,
+    days_data: list[_DayData],
+    lang: str,
+    temperature: float,
+    disable_thinking: bool,
+    run_id: uuid.UUID,
+    show_progress: bool = False,
+) -> str | None:
+    """
+    Submit a Gemini batch job for processing multiple days.
+
+    Returns the Gemini job name (e.g., "batches/xxx") if successful, None otherwise.
+    The job will be processed asynchronously by the listener.
+    """
+    if not days_data:
+        return None
+
+    # Prepare batch requests
+    batch_requests: list[gemini.BatchRequest] = []
+    config = _prepare_gemini_config(lang, temperature, disable_thinking=disable_thinking)
+
+    for day_data in days_data:
+        contents = _prepare_gemini_contents(day_data["messages"], day_data["users"])
+        batch_requests.append(
+            gemini.BatchRequest(
+                contents=contents,
+                config=config,
+                key=day_data["day"].isoformat(),
+            )
+        )
+
+    logs.info(f"Submitting batch request with {len(batch_requests)} days to Gemini")
+
+    # Submit batch request (returns LRO response, not results)
+    batch_response = await gemini.fetch_completions_batch(
+        session,
+        model=model_name,
+        requests=batch_requests,
+        display_name=f"segmentation-{chat_id}-{run_id}",
+    )
+
+    gemini_job_name = batch_response["name"]
+    logs.info(f"Batch job submitted: {gemini_job_name}")
+
+    # Save batch job reference to database
+    batch_job = BatchJob.for_gemini_batch(
+        user_id=user_id,
+        chat_id=chat_id,
+        model_name=model_name,
+        gemini_job_name=gemini_job_name,
+        days_data=_serialize_days_data(days_data),
+        run_id=run_id,
+        method_id=method_id,
+        lang=lang,
+        temperature=temperature,
+        disable_thinking=disable_thinking,
+    )
+    await batch_job.save(conn)
+    logs.info(f"Batch job saved to database with id={batch_job._id}")
+
+    return gemini_job_name
+
+
+async def process_gemini_batch_result(
+    conn: asyncpg.Connection,
+    batch_job: BatchJob,
+    inlined_responses: list[dict],
+) -> tuple[int, int, int, int]:
+    """
+    Process the results of a completed Gemini batch job.
+
+    Args:
+        conn: Database connection
+        batch_job: The BatchJob record from our database
+        inlined_responses: The inlined responses from the completed Gemini job
+
+    Returns:
+        Tuple of (nb_messages, nb_discussions, nb_input_tokens, nb_output_tokens)
+    """
+    meta = batch_job.meta
+    chat_id = meta["chat_id"]
+    method_id = meta["method_id"]
+    run_id = batch_job.run_id
+    user_id = batch_job.user_id
+    disable_thinking = meta["disable_thinking"]
+
+    # Deserialize days_data
+    days_data = _deserialize_days_data(meta["days_data"])
+
+    # Create mapping from day key to day data
+    days_by_key: dict[str, _DayData] = {dd["day"].isoformat(): dd for dd in days_data}
+
+    # Create mapping from response key to response
+    # Each inlined response has a "metadata" with "key" and "response" with the actual response
+    responses_by_key: dict[str, dict] = {}
+    for resp in inlined_responses:
+        key = resp.get("metadata", {}).get("key")
+        if key:
+            responses_by_key[key] = resp
+
+    nb_messages, nb_discussions, nb_input_tokens, nb_output_tokens = 0, 0, 0, 0
+
+    for day_key, day_data in days_by_key.items():
+        _day = day_data["day"]
+        _ids = day_data["ids"]
+        _nb_messages = day_data["nb_messages"]
+        nb_messages += _nb_messages
+
+        if day_key not in responses_by_key:
+            logs.error(f"Missing result for day {day_key} in batch response")
+            continue
+
+        resp_data = responses_by_key[day_key]
+
+        # Extract response content and usage
+        response = resp_data.get("response", {})
+        candidates = response.get("candidates", [])
+        usage_metadata = response.get("usageMetadata", {})
+
+        if not candidates:
+            logs.error(f"No candidates in response for day {day_key}")
+            continue
+
+        # Extract text content
+        content_parts = candidates[0].get("content", {}).get("parts", [])
+        content_text = ""
+        for part in content_parts:
+            if "text" in part:
+                content_text += part["text"]
+
+        # Extract token usage
+        token: UsageToken = {
+            "total": usage_metadata.get("totalTokenCount", 0),
+            "input": usage_metadata.get("promptTokenCount", 0),
+            "output": usage_metadata.get("candidatesTokenCount", 0),
+            "cached": usage_metadata.get("cachedContentTokenCount", 0),
+        }
+
+        # Parse the response
+        try:
+            result, thinking_text = parse_json_response(content_text, model=ConversationSegResult)
+        except Exception as e:
+            logs.error(f"Failed to parse response for day {day_key}: {e}")
+            continue
+
+        discussions = result if isinstance(result, list) else [result]
+
+        # Validate IDs
+        res_ids = {_id for res in discussions for _id in res["ids"]}
+        invalid_ids = res_ids - _ids
+        missing_ids = _ids - res_ids
+
+        if invalid_ids:
+            logs.warning(f"Invalid ids found for day {day_key}: {invalid_ids}")
+
+        # Save request metadata
+        _meta: dict = {"thinking": not disable_thinking, "batch": True, "gemini_batch": True}
+        if thinking_text is not None:
+            _meta["thinking_text"] = thinking_text
+        await Requests.load(
+            "completion",
+            user_id=user_id,
+            token=token,
+            payload={"batch": True, "day": day_key},
+            meta=_meta,
+            run_id=run_id,
+        ).save(conn)
+
+        # Save discussions
+        group_meta = {"day": day_key}
+        for discussion in discussions:
+            _group = MessageGroup(
+                chat_id=chat_id,
+                group_method_id=method_id,
+                summary=discussion["summary"],
+                title=discussion["title"],
+                internal_code=get_unique_identifier(discussion["ids"], day_key + str(run_id)),
+                meta=group_meta,
+                run_id=run_id,
+            )
+            _group_id = await _group.upsert(conn)
+            _group_messages = (
+                MessageGroupChat(chat_id=chat_id, group_id=_group_id, msg_id=msg_id) for msg_id in discussion["ids"]
+            )
+            await MessageGroupChat.bulk_save(conn, _group_messages)
+            if len(discussion["ids"]) < NB_MIN_MESSAGES:
+                logs.warning(f"Discussion {discussion['title']} has less than {NB_MIN_MESSAGES} messages")
+
+        nb_discussions += len(discussions)
+        nb_input_tokens += token["input"]
+        nb_output_tokens += token["output"]
+
+        logs.debug(
+            f"Day {_day} | messages: {_nb_messages} | "
+            f"discussions: {len(discussions)} | "
+            f"input token: {token['input']} | "
+            f"output token: {token['output']} | "
+            f"missing ids: {len(missing_ids)}"
+        )
+
+    # Update batch job meta with results
+    batch_job.meta["processed_messages"] = nb_messages
+    batch_job.meta["total_discussions"] = nb_discussions
+
+    return nb_messages, nb_discussions, nb_input_tokens, nb_output_tokens
 
 
 async def _get_processed_days(conn: asyncpg.Connection, chat_id: int) -> set[dt.date]:
@@ -368,61 +658,51 @@ async def _get_processed_days(conn: asyncpg.Connection, chat_id: int) -> set[dt.
     return {x["day"] for x in rows}
 
 
-async def run_group_messages(
+async def _get_available_days(
+    conn: asyncpg.Connection, chat_id: int, from_date: dt.date | None = None
+) -> list[dt.date]:
+    """
+    Returns the list of distinct days that have messages in the chat.
+    Optionally filters to days >= from_date.
+    """
+    rows = await conn.fetch(
+        """
+        SELECT distinct cm.sent_at::date as d
+        from general.chat_messages cm
+        where cm.chat_id = $1
+          and ($2::date is null or cm.sent_at::date >= $2)
+        order by d
+        """,
+        chat_id,
+        from_date,
+    )
+    return [x["d"] for x in rows]
+
+
+async def _run_group_messages(
     conn: asyncpg.Connection,
     session: AsyncSession,
     chat_id: int,
     user_id: int,
+    source: AISource,
+    model_name: str | None,
+    agent_name: str | None,
+    method_id: int,
+    days: list[dt.date],
+    lang: str,
+    temperature: float,
+    disable_thinking: bool,
+    run_id: uuid.UUID,
     show_progress: bool = False,
     force: bool = False,
-    lang: str = "french",
-    api_key: str | None = None,
-    **params: Unpack[ParamsV2],
-):
+) -> tuple[int, int, int, int]:
     """
-    Group messages into discussions.
-    Also compute the summary for each discussion in the specified `lang` language.
+    Process days sequentially (one request per day).
+    Returns (nb_messages, nb_discussions, nb_input_tokens, nb_output_tokens).
     """
-    source, model_name, agent_name = setup_session_model(
-        session,
-        model_name=params.get("model_name"),
-        agent_name=params.get("agent_name"),
-        api_key=api_key,
-    )
-
-    _days = params.get("days")
-    _temperature = params.get("temperature", BASE_TEMP)
-    _disable_thinking = params.get("disable_thinking", True)
-
-    _method_id = await GROUPING_V2.upsert(conn)
-
-    if not _days:
-        from_date = params.get("from_date")
-        if not force:
-            processed_days = await _get_processed_days(conn, chat_id)
-        else:
-            processed_days = set()
-        days = await conn.fetch(
-            """
-            SELECT distinct cm.sent_at::date as d
-            from general.chat_messages cm
-            where cm.chat_id = $1
-              and $2::date is null
-               or cm.sent_at::date >= $2
-            order by d
-            """,
-            chat_id,
-            from_date,
-        )
-        nb_days = len(days)
-        _days = (x["d"] for x in days if x["d"] not in processed_days)
-    else:
-        nb_days = len(_days)
-    logs.info(f"Found {nb_days} days to process")
-
     nb_messages, nb_discussions, nb_input_tokens, nb_output_tokens = 0, 0, 0, 0
-    run_id = uuid.uuid4()
-    for day in track(_days, disable=not show_progress, show_speed=True, description="Days..."):
+
+    for day in track(days, disable=not show_progress, show_speed=True, description="Days..."):
         _day: dt.date = day
         messages, _nb_messages = await get_messages_by_dates(conn, dates=[_day], chat_id=chat_id, force=force)
         nb_messages += _nb_messages
@@ -433,13 +713,13 @@ async def run_group_messages(
             messages,
             conn=conn,
             lang=lang,
-            temperature=_temperature,
+            temperature=temperature,
             source=source,
             agent_name=agent_name,
             model_name=model_name,
             raise_invalid_ids=False,
             run_id=run_id,
-            disable_thinking=_disable_thinking,
+            disable_thinking=disable_thinking,
             user_id=user_id,
         )
         if invalid_ids:
@@ -461,7 +741,7 @@ async def run_group_messages(
         for discussion in track(discussions, disable=not show_progress, show_speed=True, description="Discussions..."):
             _group = MessageGroup(
                 chat_id=chat_id,
-                group_method_id=_method_id,
+                group_method_id=method_id,
                 summary=discussion["summary"],
                 title=discussion["title"],
                 internal_code=get_unique_identifier(discussion["ids"], _day.isoformat() + str(run_id)),
@@ -490,6 +770,156 @@ async def run_group_messages(
             f"total input tokens: {nb_input_tokens}, "
             f"total output tokens: {nb_output_tokens})"
         )
+
+    return nb_messages, nb_discussions, nb_input_tokens, nb_output_tokens
+
+
+async def _run_group_messages_batch(
+    conn: asyncpg.Connection,
+    session: AsyncSession,
+    chat_id: int,
+    user_id: int,
+    model_name: str,
+    method_id: int,
+    days: list[dt.date],
+    lang: str,
+    temperature: float,
+    disable_thinking: bool,
+    run_id: uuid.UUID,
+    show_progress: bool = False,
+    force: bool = False,
+) -> str | None:
+    """
+    Submit days for Gemini batch API processing.
+
+    Returns the Gemini job name if successful, None otherwise.
+    Results will be processed asynchronously by the listener.
+    """
+    # Collect all days' data for batch processing
+    logs.info(f"Batch mode enabled, collecting data for {len(days)} days")
+    days_data: list[_DayData] = []
+
+    # Fetch all messages in one query
+    all_messages, _ = await get_messages_by_dates(conn, dates=days, chat_id=chat_id, force=force)
+    all_messages_list = list(all_messages)
+
+    # Group by date (messages are already sorted by sent_at)
+    def get_date(msg: MessageLite) -> dt.date:
+        return dt.datetime.fromisoformat(msg["s"]).date()
+
+    for day, group in itertools.groupby(all_messages_list, key=get_date):
+        _messages = list(group)
+        _ids = {x["id"] for x in _messages}
+        _users = {x["u"]: x["username"] for x in _messages}
+
+        days_data.append(
+            {
+                "day": day,
+                "messages": _messages,
+                "ids": _ids,
+                "users": _users,
+                "nb_messages": len(_messages),
+            }
+        )
+
+    # Submit batch job (returns job name, results processed asynchronously)
+    return await _run_group_messages_batch_gemini(
+        conn=conn,
+        session=session,
+        chat_id=chat_id,
+        user_id=user_id,
+        model_name=model_name,
+        method_id=method_id,
+        days_data=days_data,
+        lang=lang,
+        temperature=temperature,
+        disable_thinking=disable_thinking,
+        run_id=run_id,
+        show_progress=show_progress,
+    )
+
+
+async def run_group_messages(
+    conn: asyncpg.Connection,
+    session: AsyncSession,
+    chat_id: int,
+    user_id: int,
+    show_progress: bool = False,
+    force: bool = False,
+    lang: str = "french",
+    api_key: str | None = None,
+    **params: Unpack[ParamsV2],
+):
+    """
+    Group messages into discussions.
+    Also compute the summary for each discussion in the specified `lang` language.
+    """
+    source, model_name, agent_name = setup_session_model(
+        session,
+        model_name=params.get("model_name"),
+        agent_name=params.get("agent_name"),
+        api_key=api_key,
+    )
+
+    _days = params.get("days")
+    _temperature = params.get("temperature", BASE_TEMP)
+    _disable_thinking = params.get("disable_thinking", True)
+    _batch = params.get("batch", False)
+
+    _method_id = await GROUPING_V2.upsert(conn)
+
+    if not _days:
+        from_date = params.get("from_date")
+        processed_days = await _get_processed_days(conn, chat_id) if not force else set()
+        all_days = await _get_available_days(conn, chat_id, from_date)
+        nb_days = len(all_days)
+        _days = [d for d in all_days if d not in processed_days]
+    else:
+        nb_days = len(_days)
+        _days = list(_days)
+    logs.info(f"Found {nb_days} days to process")
+
+    run_id = uuid.uuid4()
+
+    # Choose processing mode
+    if _batch and source == "gemini":
+        if model_name is None:
+            raise ValueError("Model name must be provided for batch mode with Gemini")
+        gemini_job_name = await _run_group_messages_batch(
+            conn=conn,
+            session=session,
+            chat_id=chat_id,
+            user_id=user_id,
+            model_name=model_name,
+            method_id=_method_id,
+            days=_days,
+            lang=lang,
+            temperature=_temperature,
+            disable_thinking=_disable_thinking,
+            run_id=run_id,
+            show_progress=show_progress,
+            force=force,
+        )
+        logs.info(f"Batch job submitted: {gemini_job_name}. Results will be processed by listener.")
+        return gemini_job_name
+
+    nb_messages, nb_discussions, nb_input_tokens, nb_output_tokens = await _run_group_messages(
+        conn=conn,
+        session=session,
+        chat_id=chat_id,
+        user_id=user_id,
+        source=source,
+        model_name=model_name,
+        agent_name=agent_name,
+        method_id=_method_id,
+        days=_days,
+        lang=lang,
+        temperature=_temperature,
+        disable_thinking=_disable_thinking,
+        run_id=run_id,
+        show_progress=show_progress,
+        force=force,
+    )
 
     logs.info(
         f"Finished grouping {nb_messages} messages into {nb_discussions} discussions "
