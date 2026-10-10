@@ -1,12 +1,12 @@
 import datetime as dt
 import unittest.mock
 from collections.abc import Callable
+from operator import itemgetter
 from typing import Any, NamedTuple
 
 import psycopg
 import pytest
 from tracktolib.pg_sync import insert_many
-from tracktolib.tests import assert_equals
 
 from polarsen.common import search as search_module
 from polarsen.common.search import search_close_messages
@@ -194,11 +194,12 @@ def _check_single_group(result: list, ctx: dict):
             "reply_to_id": None,
         },
     ]
-    assert_equals(result[0]["messages"], expected_messages, ignore_order=True)
+    by_id = itemgetter("id")
+    assert sorted(result[0]["messages"], key=by_id) == sorted(expected_messages, key=by_id)
 
 
 def _check_empty(result: list, _ctx: dict):
-    assert_equals(result, [])
+    assert result == []
 
 
 def _check_limited(result: list, _ctx: dict):

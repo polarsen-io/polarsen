@@ -1,6 +1,7 @@
 # syntax=docker/dockerfile:1.4
 # check=error=true
-FROM ghcr.io/astral-sh/uv:python3.14-alpine AS builder
+# TODO: drop -rc once 3.15 final images are published
+FROM ghcr.io/astral-sh/uv:python3.15-rc-alpine AS builder
 
 WORKDIR /app
 
@@ -29,7 +30,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --locked --no-dev ${UV_PARAMS}
 
 FROM rg.fr-par.scw.cloud/polarsen/psql:18-alpine as pg
-FROM python:3.14-alpine AS main
+FROM python:3.15-rc-alpine AS main
 
 ARG VERSION
 ENV VERSION=$VERSION
@@ -41,11 +42,12 @@ RUN addgroup user && \
 
 # Install runtime dependencies that psql needs
 RUN apk add --no-cache \
+    libgcc \
     libedit \
     krb5-libs \
     openldap
 
-COPY --from=builder /usr/local/lib/python3.14/site-packages/ /usr/local/lib/python3.14/site-packages/
+COPY --from=builder /usr/local/lib/python3.15/site-packages/ /usr/local/lib/python3.15/site-packages/
 COPY --from=builder /usr/local/bin/ /usr/local/bin/
 # PG client
 COPY --from=pg /usr/local/bin/psql /usr/local/bin/psql

@@ -3,7 +3,7 @@ name = "polarsen"
 version = "0.1.1-rc.17"
 description = ""
 readme = "README.md"
-requires-python = ">=3.14"
+requires-python = ">=3.15"
 authors = [{ name = "Julien Brayere", email = "julien.brayere@polarsen.io" }]
 license-files = ["LICENSE.md"]
 # Commented out to avoid issues with license detection tools like uv
@@ -23,7 +23,6 @@ dev = [
     "minio>=7.2.16",
     "faker>=37.6.0",
     "pre-commit>=4.3.0",
-    "deepdiff>=8.6.1",
     {include-group = "default"},
     {include-group = "llms"},
     {include-group = "api"},
@@ -80,7 +79,7 @@ exclude-newer = "5 days"
 include = ["polarsen", "tests"]
 exclude = []
 
-pythonVersion = "3.14"
+pythonVersion = "3.15"
 pythonPlatform = "Linux"
 
 [tool.pytest.ini_options]
@@ -96,7 +95,7 @@ filterwarnings = [
 
 [tool.ruff]
 line-length = 120
-target-version = "py314"
+target-version = "py315"
 
 [tool.ruff.lint]
 extend-select = ["G"]
