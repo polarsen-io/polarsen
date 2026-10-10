@@ -115,6 +115,8 @@ class TestUsers:
         ],
     )
     def test_create_user(self, client, payload, engine):
+        from polarsen.db.crypto import decrypt_api_keys
+
         resp = client.post("/users", json=payload)
         assert resp.status_code == HTTPStatus.OK, resp.text
         resp_data = resp.json()
@@ -126,8 +128,12 @@ class TestUsers:
         user_in_db = fetch_one(engine, f"SELECT {fields_str} from general.users WHERE id = %s", resp_data["id"])
         assert user_in_db is not None
 
-        # Direct comparison of payload with database result
-        assert payload == dict(user_in_db), f"Payload mismatch: expected {payload}, got {dict(user_in_db)}"
+        # api_keys are stored encrypted at rest; decrypt before comparing.
+        actual = dict(user_in_db)
+        if actual.get("api_keys"):
+            assert actual["api_keys"] != payload["api_keys"], "api_keys should be encrypted at rest"
+            actual["api_keys"] = decrypt_api_keys(actual["api_keys"])
+        assert payload == actual, f"Payload mismatch: expected {payload}, got {actual}"
 
     @pytest.mark.usefixtures("add_user")
     def test_user_exists(self, client, engine, telegram_user):

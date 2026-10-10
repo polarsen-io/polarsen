@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import contextlib
 import datetime as dt
 import json
@@ -20,7 +18,7 @@ from polarsen import env
 from polarsen.db import UsageToken
 from polarsen.logs import logs
 
-from .models import gemini, grok, mistral, openai, self_hosted
+from .models import gemini, grok, mistral, openai
 from .models.gemini import is_thinking_only_model
 from .search import CloseEmbedding, search_close_messages
 from .utils import AISource
@@ -346,8 +344,6 @@ class OpenAIChatSession(ChatSession):
             _source = "openai"
         elif grok.is_grok_model(self.model_name):
             _source = "grok"
-        elif self_hosted.is_self_hosted_model(self.model_name):
-            _source = "self_hosted"
 
         if _source is None:
             raise ValueError(f"Model {self.model_name!r} is not supported")
@@ -422,7 +418,6 @@ _SET_HEADERS_FUNCS = {
     "gemini": gemini.set_headers,
     "openai": openai.set_headers,
     "grok": grok.set_headers,
-    "self_hosted": lambda session, api_key=None: self_hosted.set_headers(session),
 }
 
 # Header keys used by each AI source (for saving/restoring previous values)
@@ -431,7 +426,6 @@ _AUTH_HEADER_KEYS: dict[AISource, str] = {
     "gemini": "x-goog-api-key",
     "openai": "Authorization",
     "grok": "Authorization",
-    "self_hosted": "Authorization",
 }
 
 

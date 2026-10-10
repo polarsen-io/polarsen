@@ -4,12 +4,14 @@ from pathlib import Path
 
 import asyncpg
 import botocore.client
+import msgspec
 import niquests
 
 from polarsen.ai.conversations import v2
-from polarsen.ai.embeddings import DEFAULT_EMBEDDING_MODEL, EmbeddingGroup, EmbeddingGroupAdapter, gen_groups_embeddings
+from polarsen.ai.embeddings import DEFAULT_EMBEDDING_MODEL, EmbeddingGroup, gen_groups_embeddings
 from polarsen.common.utils import AISource, get_source_from_model
 from polarsen.db import DbChat, MessageGroup
+from polarsen.db.crypto import decrypt_secret
 from polarsen.logs import logs, set_worker_logger
 from polarsen.pg import acquire
 
@@ -118,7 +120,7 @@ async def process_stuck_chats_worker(
 
 async def _get_chats_not_grouped(
     conn: asyncpg.Connection, source: AISource, limit: int = 1, only_with_keys: bool = True
-) -> list[asyncpg.Record]:
+) -> list[dict]:
     """
     Get chats that are not yet grouped - with status not in ('processing', 'done') - and lock them for processing.
     If only_with_keys is True, only return chats where the user has an API key for the given source.
@@ -138,7 +140,7 @@ async def _get_chats_not_grouped(
         source,
         only_with_keys,
     )
-    return records
+    return [{**r, "api_key": decrypt_secret(r["api_key"]) if r["api_key"] else None} for r in records]
 
 
 async def process_chat_groups_worker(
@@ -244,7 +246,13 @@ async def _get_groups_not_embedded(conn: asyncpg.Connection, source: AISource, l
         limit,
         source,
     )
-    return [EmbeddingGroupAdapter.validate_python(row) for row in records]
+    return [
+        msgspec.convert(
+            {**row, "api_key": decrypt_secret(row["api_key"]) if row["api_key"] else None},
+            EmbeddingGroup,
+        )
+        for row in records
+    ]
 
 
 async def process_embeddings_worker(

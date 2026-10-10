@@ -3,11 +3,11 @@ import functools
 import json
 import random
 from collections.abc import Callable
-from dataclasses import dataclass
 from typing import Any, overload
 
+import msgspec
 import niquests
-import pydantic
+from padwan_ai.errors import QuotaExceededError, TooManyRequestsError
 
 from polarsen.logs import logs
 
@@ -42,7 +42,7 @@ def parse_json_response(
 
 @overload
 def parse_json_response[T](
-    resp: str, *, thinking_key: str | None = None, model: pydantic.TypeAdapter[T]
+    resp: str, *, thinking_key: str | None = None, model: type[T]
 ) -> tuple[T | list[T], str | None]: ...
 
 
@@ -62,7 +62,7 @@ class JsonResponseError(Exception):
 
 
 def parse_json_response[T](
-    resp: Any, *, thinking_key: str | None = None, model: pydantic.TypeAdapter[T] | None = None
+    resp: Any, *, thinking_key: str | None = None, model: type[T] | None = None
 ) -> tuple[list[T] | T | dict, str | None]:
     """
     Parse the JSON response from the AI model.
@@ -84,42 +84,16 @@ def parse_json_response[T](
     if model is not None:
         try:
             result = (
-                [model.validate_python(x) for x in result]
+                [msgspec.convert(x, model) for x in result]
                 if isinstance(result, list)
-                else model.validate_python(result)
+                else msgspec.convert(result, model)
             )
-        except pydantic.ValidationError:
+        except msgspec.ValidationError:
             raise JsonResponseError(
                 f"Failed to validate response with model {model}", result=result, thinking_text=thinking_text
             )
 
     return result, thinking_text
-
-
-@dataclass
-class TooManyRequestsError(Exception):
-    """Retry delay in seconds."""
-
-    retry_delay: int
-    message: str | None = None
-    response: niquests.Response | None = None
-
-    def __post_init__(self):
-        if not self.response:
-            return
-
-        logs.debug("Too many request headers", self.response.headers)
-        try:
-            logs.debug("Too many request JSON body", self.response.json())
-        except Exception:
-            logs.debug("Too many request text Body", self.response.headers)
-
-
-@dataclass
-class QuotaExceededError(Exception):
-    """Raised when API quota is exceeded (not retryable)."""
-
-    body: dict
 
 
 def check_http_response(resp: niquests.Response) -> dict:

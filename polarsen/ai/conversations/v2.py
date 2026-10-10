@@ -8,16 +8,16 @@ from collections.abc import Iterable
 from typing import TYPE_CHECKING, Literal, NotRequired, TypedDict, Unpack, cast
 
 import asyncpg
+import msgspec
 
 if TYPE_CHECKING:
     from niquests import AsyncSession
     from openai.types import chat as openai_chat_types
 
 from mistralai.client import models as mistral_models
-from pydantic.type_adapter import TypeAdapter
 from rich.progress import track
 
-from polarsen.common.models import gemini, grok, mistral, openai, self_hosted
+from polarsen.common.models import gemini, grok, mistral, openai
 from polarsen.common.models.utils import parse_json_response
 from polarsen.common.utils import AISource, setup_session_model
 from polarsen.db import GroupMethod, MessageGroup, MessageGroupChat, Requests, UsageToken, get_unique_identifier
@@ -40,8 +40,6 @@ class MessageLite(TypedDict):
     s: str  # sent at UTC
     username: str  # Username
 
-
-_MessageLiteType = TypeAdapter(MessageLite)
 
 _MESSAGES_BY_DATE = """
                     select cm.id,
@@ -70,7 +68,7 @@ async def get_messages_by_dates(
     on 2023-10-01 and replies sent later to those messages are returned.
     """
     _data = await conn.fetch(_MESSAGES_BY_DATE, dates, chat_id)
-    return (_MessageLiteType.validate_python(dict(x)) for x in _data), len(_data)
+    return (msgspec.convert(dict(x), MessageLite) for x in _data), len(_data)
 
 
 NB_MIN_MESSAGES = 3
@@ -206,7 +204,7 @@ async def _fetch_openai_segmentation(
     model_name: str,
     temperature: float = BASE_TEMP,
     seed: int | None = 2604,
-    source: Literal["openai", "grok", "self_hosted"] = "openai",
+    source: Literal["openai", "grok"] = "openai",
 ):
     """
     Fetch conversation segmentation from the OpenAI model.
@@ -216,8 +214,6 @@ async def _fetch_openai_segmentation(
             fn = openai.fetch_chat_completion
         case "grok":
             fn = grok.fetch_chat_completion
-        case "self_hosted":
-            fn = self_hosted.fetch_chat_completion
         case _:
             raise ValueError(f"Unknown source {source!r} for OpenAI segmentation")
     _messages = "[MESSAGES]" + json.dumps(messages) + "[/MESSAGES]"
@@ -242,9 +238,6 @@ class ConversationSegResult(TypedDict):
     title: str
     summary: str
     ids: list[int]
-
-
-_ConversationSegResultType = TypeAdapter(ConversationSegResult)
 
 
 async def apply_conversation_segmentation(
@@ -305,7 +298,7 @@ async def apply_conversation_segmentation(
                 disable_thinking=disable_thinking,
             )
             _thinking = not disable_thinking
-        case "openai" | "grok" | "self_hosted":
+        case "openai" | "grok":
             if model_name is None:
                 raise ValueError("Model name must be provided for openai")
             resp, token, payload = await _fetch_openai_segmentation(
@@ -323,7 +316,7 @@ async def apply_conversation_segmentation(
 
     thinking_text: str | None = None
     try:
-        result, thinking_text = parse_json_response(resp, model=_ConversationSegResultType)
+        result, thinking_text = parse_json_response(resp, model=ConversationSegResult)
     finally:
         if conn:
             _meta: dict = {**(meta or {}), "elapsed": time.time() - start, "thinking": _thinking}

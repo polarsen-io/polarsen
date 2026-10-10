@@ -1,4 +1,4 @@
-from . import gemini, grok, mistral, openai, self_hosted, utils
+from . import gemini, grok, mistral, openai, utils
 from .utils import TooManyRequestsError
 
 __all__ = (
@@ -7,6 +7,5 @@ __all__ = (
     "grok",
     "mistral",
     "openai",
-    "self_hosted",
     "utils",
 )

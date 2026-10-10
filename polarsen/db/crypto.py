@@ -40,13 +40,13 @@ def decrypt_secret(value: str) -> str:
         return value
 
 
-def encrypt_api_keys(api_keys: dict[str, str] | None) -> dict[str, str] | None:
+def encrypt_api_keys[K: str](api_keys: dict[K, str] | None) -> dict[K, str] | None:
     if not api_keys:
         return api_keys
     return {k: encrypt_secret(v) for k, v in api_keys.items()}
 
 
-def decrypt_api_keys(api_keys: dict[str, str] | None) -> dict[str, str] | None:
+def decrypt_api_keys[K: str](api_keys: dict[K, str] | None) -> dict[K, str] | None:
     if not api_keys:
         return api_keys
     return {k: decrypt_secret(v) for k, v in api_keys.items()}

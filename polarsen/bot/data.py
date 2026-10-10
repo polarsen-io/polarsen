@@ -3,9 +3,9 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import TypedDict
 
+import msgspec.json
 import niquests
 from niquests import AsyncSession, HTTPError
-from pydantic import TypeAdapter
 from telegram import User as TelegramUser
 
 from polarsen.common.utils import AISource, get_source_from_model, is_valid_source
@@ -115,15 +115,15 @@ class User:
         if data is None:
             await self.save()
             return
-        meta = data.get("meta") or {}
-        self.id = data.get("id")
-        self.first_name = data.get("first_name")
-        self.last_name = data.get("last_name")
+        meta = data["meta"] or {}
+        self.id = data["id"]
+        self.first_name = data["first_name"]
+        self.last_name = data["last_name"]
         self.selected_chat_id = meta.get("selected_chat_id")
         self.selected_model = meta.get("selected_model")
-        self.api_keys = {k: v for k, v in (data.get("api_keys") or {}).items() if is_valid_source(k)}
-        self.chats = data.get("chats", [])
-        self.uploads = data.get("uploads", [])
+        self.api_keys = {k: v for k, v in (data["api_keys"] or {}).items() if is_valid_source(k)}
+        self.chats = data["chats"]
+        self.uploads = data["uploads"]
 
     def t(self, key: str, *args, **kwargs) -> str:
         return i18n.get(self.lang_code, key, *args, **kwargs)
@@ -135,14 +135,16 @@ class User:
         }
         async with AsyncSession() as session:
             resp = await session.get(f"{API_URI}/users", params=params)
-        _resp = _check_response(resp)
-        return _UserAdapter.validate_python(_resp) if _resp is not None else None
+        resp.raise_for_status()
+        if not resp.content:
+            return None
+        return msgspec.json.decode(resp.content, type=models.User)
 
     @staticmethod
     async def fetch_save_user(data: models.NewUser) -> models.User:
         async with AsyncSession() as session:
             resp = await session.post(f"{API_URI}/users", json=data)
-        return _UserAdapter.validate_python(_check_response(resp))
+        return _decode_response(resp, models.User)
 
     def set_last_question(self, question_id: int, results: list[models.EmbeddingResult], response: str):
         """Set the last question asked by the user."""
@@ -151,36 +153,28 @@ class User:
 
 _USERS: dict[int, User] = {}  # Cache for users loaded from the API
 
-_UserAdapter = TypeAdapter(models.User)
 
-
-def _check_response(resp: niquests.Response) -> dict:
+def _decode_response[T](resp: niquests.Response, type: type[T]) -> T:
     try:
         resp.raise_for_status()
     except HTTPError:
         logs.error(resp.json())
         raise
-    return resp.json()
-
-
-_AskQuestionAdapter = TypeAdapter(models.AskQuestion)
+    return msgspec.json.decode(resp.content or b"", type=type)
 
 
 async def ask_question(chat_id: int, question: str, model: str, user_id: int) -> models.AskQuestion:
     params = {"question": question, "model": model, "user_id": user_id}
     async with AsyncSession() as session:
         resp = await session.get(f"{API_URI}/chats/{chat_id}/ask", params=params)
-    return _AskQuestionAdapter.validate_python(_check_response(resp))
-
-
-_StatusTypeAdapter = TypeAdapter(models.Status)
+    return _decode_response(resp, models.AskQuestion)
 
 
 async def give_feedback(question_id: int, feedback: str) -> models.Status:
     params = {"feedback": feedback}
     async with AsyncSession() as session:
         resp = await session.patch(f"{API_URI}/questions/{question_id}", params=params)
-    return _StatusTypeAdapter.validate_python(_check_response(resp))
+    return _decode_response(resp, models.Status)
 
 
 async def download_telegram_file(
@@ -205,9 +199,6 @@ async def download_telegram_file(
     return chunk_generator(), parsed_content_length
 
 
-_ChatUploadValidator = TypeAdapter(models.ChatUpload)
-
-
 async def upload_chat(url: str, user_id: int, filename: str, mime_type: str) -> models.ChatUpload:
     """
     Upload a chat file to the server.
@@ -224,4 +215,4 @@ async def upload_chat(url: str, user_id: int, filename: str, mime_type: str) -> 
 
         resp = await session.post(f"{API_URI}/chats/upload", data=data, headers=headers, params=params)
 
-    return _ChatUploadValidator.validate_python(_check_response(resp))
+    return _decode_response(resp, models.ChatUpload)

@@ -1,5 +1,4 @@
 import os
-from collections.abc import Mapping
 from contextlib import asynccontextmanager
 from typing import Any
 
@@ -12,21 +11,17 @@ import polarsen
 from polarsen import env
 from polarsen.common.chat import ChatSession
 from polarsen.db import ChatUpload as ChatUploadDB
+from polarsen.db import Question as QuestionDB
+from polarsen.db import User as UserDB
 from polarsen.logs import logs
 from polarsen.s3_utils import s3_delete_object, s3_file_upload
 from polarsen.utils import compute_md5
 
-from .data import Question as QuestionDB
-from .data import User as UserDB
 from .dependencies import connect_pg, get_client, get_conn, get_s3_client
 from .models import AIModel, AskQuestion, ChatType, ChatUpload, EmbeddingResult, NewUser, Status, User
 from .utils import APIException, ErrorCode, get_user
 
 VERSION = polarsen.__version__
-
-
-# See: https://github.com/pydantic/pydantic/issues/9406#issuecomment-2104224328
-Mapping.register(asyncpg.Record)  # type: ignore[method-assign]
 
 
 @asynccontextmanager
@@ -65,17 +60,10 @@ async def _create_user(user: NewUser, conn=Depends(get_conn)) -> User:
     The user is automatically linked to any existing Telegram chats they belong to.
     """
     async with conn.transaction():
-        user_id = await UserDB.upsert(
-            conn,
-            telegram_id=user.telegram_id,
-            first_name=user.first_name,
-            last_name=user.last_name,
-            meta=user.meta,
-            api_keys=user.api_keys,
-        )
+        user_id = await UserDB.upsert(conn, **user)
         data = await get_user(conn, user_id=user_id)
         if data is None:
-            raise ValueError(f"Failed to create user with telegram_id {user.telegram_id}")
+            raise ValueError(f"Failed to create user with telegram_id {user['telegram_id']}")
     return data
 
 
@@ -89,14 +77,7 @@ async def _create_users(users: list[NewUser], conn=Depends(get_conn)) -> Status:
     async with conn.transaction():
         # TODO: optimize this to use a single query
         for user in users:
-            await UserDB.upsert(
-                conn,
-                telegram_id=user.telegram_id,
-                first_name=user.first_name,
-                last_name=user.last_name,
-                meta=user.meta,
-                api_keys=user.api_keys,
-            )
+            await UserDB.upsert(conn, **user)
     return Status(status="ok", message=f"Created {len(users)} users successfully.")
 
 

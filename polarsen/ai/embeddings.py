@@ -3,8 +3,8 @@ import itertools
 from typing import NotRequired, TypedDict
 
 import asyncpg
+import msgspec
 from niquests import AsyncSession
-from pydantic import TypeAdapter
 from rich.progress import track
 
 from polarsen.common.models import mistral  # Could be lazy
@@ -15,7 +15,6 @@ from polarsen.logs import logs
 __all__ = (
     "DEFAULT_EMBEDDING_MODEL",
     "EmbeddingGroup",
-    "EmbeddingGroupAdapter",
     "gen_embeddings",
     "gen_group_embeddings",
     "gen_groups_embeddings",
@@ -32,9 +31,6 @@ class EmbeddingGroup(TypedDict):
     user_id: int
     api_key: NotRequired[str | None]
     day: NotRequired[dt.date]
-
-
-EmbeddingGroupAdapter = TypeAdapter(EmbeddingGroup)
 
 
 async def get_groups(
@@ -74,7 +70,7 @@ async def get_groups(
         from_date,
         chat_id,
     )
-    return [EmbeddingGroupAdapter.validate_python(row) for row in data]
+    return [msgspec.convert(dict(row), EmbeddingGroup) for row in data]
 
 
 def _get_embed_input_from_group(group: EmbeddingGroup) -> str:

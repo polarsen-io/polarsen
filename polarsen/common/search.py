@@ -3,7 +3,7 @@ from collections.abc import Awaitable, Callable
 from typing import TypedDict
 
 import asyncpg
-import pydantic
+import msgspec
 from niquests import AsyncSession
 
 from polarsen.db import UsageToken
@@ -86,9 +86,6 @@ class CloseEmbedding(TypedDict):
     messages: list[ChatMessage]
 
 
-_CloseEmbeddingType = pydantic.TypeAdapter(CloseEmbedding)
-
-
 async def search_close_messages(
     session: AsyncSession,
     conn: asyncpg.Connection,
@@ -102,4 +99,4 @@ async def search_close_messages(
     # fetch_embeddings returns list[list[float]], extract the first embedding
     embedding = embeddings[0]
     results = await conn.fetch(_SEARCH_EMBEDDINGS_QUERY, embedding, limit, chat_id)
-    return [_CloseEmbeddingType.validate_python(dict(x)) for x in results]
+    return [msgspec.convert(dict(x), CloseEmbedding) for x in results]

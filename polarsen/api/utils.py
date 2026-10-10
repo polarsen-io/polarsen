@@ -3,7 +3,9 @@ from enum import Enum
 from typing import Any
 
 import asyncpg
-from pydantic import TypeAdapter
+import msgspec
+
+from polarsen.db.crypto import decrypt_api_keys
 
 from .models import Chat, ChatUpload, User
 
@@ -73,10 +75,6 @@ class APIException(Exception):
         self.payload = kwargs
 
 
-_ChatTypeAdapter = TypeAdapter(Chat)
-_UserTypeAdapter = TypeAdapter(User)
-_UploadTypeAdapter = TypeAdapter(ChatUpload)
-
 _GET_USER_CHATS_QUERY = textwrap.dedent(
     """
     SELECT id, name, _last_msg.last_sent_at as cutoff_date
@@ -97,7 +95,7 @@ _GET_USER_CHATS_QUERY = textwrap.dedent(
 async def get_user_chats(conn: asyncpg.Connection, user_id: int) -> list[Chat]:
     """Get the list of chats for a user based on its ID."""
     chats = await conn.fetch(_GET_USER_CHATS_QUERY, user_id)
-    return [_ChatTypeAdapter.validate_python(chat) for chat in chats]
+    return [msgspec.convert(dict(chat), Chat) for chat in chats]
 
 
 async def get_user_uploads(conn: asyncpg.Connection, user_id: int) -> list[ChatUpload]:
@@ -117,7 +115,7 @@ async def get_user_uploads(conn: asyncpg.Connection, user_id: int) -> list[ChatU
         """,
         user_id,
     )
-    return [_UploadTypeAdapter.validate_python(upload) for upload in uploads]
+    return [msgspec.convert(dict(upload), ChatUpload) for upload in uploads]
 
 
 _GET_USER_QUERY = """
@@ -147,10 +145,7 @@ async def get_user(conn: asyncpg.Connection, user_id: int | None = None, telegra
 
     chats = await get_user_chats(conn, user_id=user["id"])
     uploads = await get_user_uploads(conn, user_id=user["id"])
-    return _UserTypeAdapter.validate_python(
-        {
-            **dict(user),
-            "chats": chats,
-            "uploads": uploads,
-        }
+    return msgspec.convert(
+        {**user, "api_keys": decrypt_api_keys(user["api_keys"]), "chats": chats, "uploads": uploads},
+        User,
     )

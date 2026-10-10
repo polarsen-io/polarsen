@@ -1,8 +1,6 @@
+from padwan_ai import is_gemini_model
+
 __all__ = ("is_gemini_model", "is_thinking_only_model")
-
-
-def is_gemini_model(model_name: str) -> bool:
-    return model_name.startswith("gemini")
 
 
 _THINKING_ONLY_MODELS = {

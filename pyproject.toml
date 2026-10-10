@@ -38,6 +38,7 @@ default = [
     "niquests>=3.16.0",
     "tracktolib>=0.74.0",
     "python-json-logger>=3.3.0",
+    "msgspec>=0.20.0",
     "cryptography>=43.0.0",
 ]
 
@@ -48,12 +49,11 @@ llms = [
     "requests>=2.32.0",
     "mistralai>=1.9.11",
     "openai>=2.8.0",
-    "pydantic>=2.11.2"
+    "padwan-ai>=0.14.0",
 ]
 
 api = [
     "fastapi[standard]>=0.115.12",
-    "bcrypt>=4.3.0",
     "botocore>=1.40.45",
     "sentry-sdk[fastapi]>=2.32.0",
 ]
@@ -62,7 +62,6 @@ telegram = [
     "python-telegram-bot>=22.1",
     "watchfiles>=1.0.5",
     "sentry-sdk>=2.32.0",
-    "pydantic>=2.11.10",
 ]
 
 bump = [

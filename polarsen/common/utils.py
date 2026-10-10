@@ -1,14 +1,13 @@
-from typing import Literal, TypeGuard, get_args
+from typing import TypeGuard, get_args
 
 import niquests
 
 from polarsen import env
 
-from .models import gemini, grok, mistral, openai, self_hosted
+from .models import gemini, grok, mistral, openai
+from .types import AISource
 
 __all__ = ("ENV_VARS", "AISource", "get_source_from_model", "is_valid_source", "setup_session_model")
-
-AISource = Literal["mistral", "gemini", "openai", "grok", "self_hosted"]
 
 ENV_VARS: dict[AISource, str | None] = {
     "mistral": env.MISTRAL_API_KEY,
@@ -41,8 +40,6 @@ def get_source_from_model(model_name: str | None = None, agent_name: str | None 
         return "openai"
     elif grok.is_grok_model(_model_name):
         return "grok"
-    elif self_hosted.is_self_hosted_model(_model_name):
-        return "self_hosted"
 
     raise ValueError(f"Unknown model name {_model_name!r} or agent name {_agent_name!r}")
 
@@ -74,9 +71,6 @@ def setup_session_model(
     elif grok.is_grok_model(_model_name):
         grok.set_headers(session, api_key=api_key)
         _source = "grok"
-    elif self_hosted.is_self_hosted_model(_model_name):
-        _source = "self_hosted"
-        self_hosted.set_headers(session)
     else:
         raise ValueError(f"Unknown model name {_model_name!r} or agent name {_agent_name!r}")
 
