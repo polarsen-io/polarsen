@@ -3,7 +3,7 @@ import functools
 from telegram import Update
 
 from polarsen.logs import logs
-from polarsen.telemetry.sentry import capture_exception
+from polarsen.telemetry.sentry import capture_exception, set_user
 
 from .data import User
 
@@ -21,6 +21,9 @@ def handle_errors(func):
             _update_arg = args[0]
             if not isinstance(_update_arg, Update):
                 raise TypeError("The first argument must be an instance of telegram.Update")
+
+            if _update_arg.effective_user:
+                set_user(_update_arg.effective_user.id)
 
             if capture_exception is not None:
                 capture_exception(e)

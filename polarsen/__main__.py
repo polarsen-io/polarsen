@@ -5,7 +5,7 @@ from piou import Cli
 
 import polarsen
 from polarsen.logs import init_logs, logs
-from polarsen.telemetry.sentry import init_sentry
+from polarsen.telemetry.sentry import capture_exception, init_sentry
 
 init_sentry()
 
@@ -25,7 +25,9 @@ if _mode != "api":
     cli.add_option("-vv", "--verbose2", help="Increased verbosity")
 
     def on_process(verbose: bool = False, verbose2: bool = False):
-        init_logs(logging.DEBUG if verbose2 else logging.INFO if verbose else logging.WARNING)
+        init_logs(
+            logging.DEBUG if verbose2 else logging.INFO if verbose else logging.WARNING, version=polarsen.__version__
+        )
 
     cli.set_options_processor(on_process)
 
@@ -55,3 +57,12 @@ if __name__ == "__main__":
         cli.run()
     except KeyboardInterrupt:
         logs.info("Ctrl+C detected, exiting...")
+    except Exception as e:
+        from polarsen.env import LOGS_FORMAT
+
+        if LOGS_FORMAT == "json":
+            logs.exception("Unhandled exception", exc_info=e)
+            if capture_exception:
+                capture_exception(e)
+        else:
+            raise

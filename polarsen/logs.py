@@ -1,5 +1,10 @@
 import logging
 from contextvars import ContextVar
+from typing import Literal, cast
+
+from tracktolib.logs import init_logging as _tl_init_logging
+
+from polarsen.env import LOGS_FORMAT
 
 _base_logger = logging.getLogger("polarsen")
 _worker_logger: ContextVar[logging.LoggerAdapter | None] = ContextVar("worker_logger", default=None)
@@ -16,11 +21,10 @@ class _LoggerProxy:
 logs = _LoggerProxy()
 
 
-def init_logs(level: int = logging.INFO):
-    _stream_handler = logging.StreamHandler()
-    formatter = logging.Formatter("%(asctime)s [%(levelname)s] %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
-    _stream_handler.setFormatter(formatter)
-    _base_logger.addHandler(_stream_handler)
+def init_logs(level: int = logging.INFO, version: str | None = None):
+    if LOGS_FORMAT not in ("json", "console"):
+        raise ValueError(f"Invalid LOGS_FORMAT {LOGS_FORMAT!r}")
+    _tl_init_logging(_base_logger, log_format=cast(Literal["json", "console"], LOGS_FORMAT), version=version or "0.0.0")
     _base_logger.setLevel(level)
 
 

@@ -36,3 +36,6 @@ S3_ENDPOINT = os.getenv("S3_ENDPOINT", "http://localhost:9000")
 S3_ACCESS_KEY_ID = os.getenv("S3_ACCESS_KEY_ID", "minioadmin")
 S3_SECRET_ACCESS_KEY = os.getenv("S3_SECRET_ACCESS_KEY", "minioadmin")
 S3_REGION = os.getenv("S3_REGION", "fr-par")
+
+# Logging
+LOGS_FORMAT = os.getenv("LOGS_FORMAT", "console")

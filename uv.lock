@@ -1616,6 +1616,7 @@ default = [
     { name = "cryptography" },
     { name = "niquests" },
     { name = "piou" },
+    { name = "python-json-logger" },
     { name = "tracktolib" },
 ]
 dev = [
@@ -1641,6 +1642,7 @@ dev = [
     { name = "pyright" },
     { name = "pytest" },
     { name = "pytest-cov" },
+    { name = "python-json-logger" },
     { name = "python-telegram-bot" },
     { name = "requests" },
     { name = "ruff" },
@@ -1681,6 +1683,7 @@ default = [
     { name = "cryptography", specifier = ">=43.0.0" },
     { name = "niquests", specifier = ">=3.16.0" },
     { name = "piou", specifier = ">=0.21.0" },
+    { name = "python-json-logger", specifier = ">=3.3.0" },
     { name = "tracktolib", specifier = ">=0.74.0" },
 ]
 dev = [
@@ -1707,6 +1710,7 @@ dev = [
     { name = "pyright", specifier = ">=1.1.398" },
     { name = "pytest", specifier = ">=8.3.5" },
     { name = "pytest-cov", specifier = ">=6.2.1" },
+    { name = "python-json-logger", specifier = ">=3.3.0" },
     { name = "python-telegram-bot", specifier = ">=22.1" },
     { name = "requests", specifier = ">=2.32.0" },
     { name = "ruff", specifier = ">=0.12.1" },
@@ -2004,6 +2008,15 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/74/26/2fbeedb218a787a5eea551c7532cac4e009f83d689dd2faa0d0353473f86/python_dotenv-1.2.4.tar.gz", hash = "sha256:f0d53e69935a851c0dcc78f3ab7aaccd8cabef0b92382b576b824212902873c0", size = 60824, upload-time = "2026-10-01T05:36:10Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/60/d1/38f3a3405989a89ac18390803e70c6ad7c7760da4f9b83cbeca0c44a0c72/python_dotenv-1.2.4-py3-none-any.whl", hash = "sha256:42269a8a5b3fd54ffa6f3d84b18abed50064717576b4ecf03dc4a55d8aa04fdc", size = 23266, upload-time = "2026-10-01T05:36:08.633Z" },
+]
+
+[[package]]
+name = "python-json-logger"
+version = "4.2.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/21/25/5473e46b179f8e8b4ad3aeeb36773d1701b7770eaf5e5bc2025c7303b598/python_json_logger-4.2.0.tar.gz", hash = "sha256:e371ebe22ec01e289850102091a2b1f6fc9e655c7f1f5f29073936756c290afa", size = 18211, upload-time = "2026-08-15T11:36:38.232Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/dc/55/6467fde553886cb293e41538f3a8b4e4fd4688c6df242cf982162d8367fb/python_json_logger-4.2.0-py3-none-any.whl", hash = "sha256:158a52126fcd6869e09574d2b66272666f3dc8f468c62637ef9a1fa883719cb9", size = 14988, upload-time = "2026-08-15T11:36:36.821Z" },
 ]
 
 [[package]]
