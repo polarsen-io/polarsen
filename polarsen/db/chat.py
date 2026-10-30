@@ -17,7 +17,24 @@ __all__ = (
     "CHAT_SOURCE_MAPPING",
     "DbChat",
     "ChatUpload",
+    "check_access_to_chat",
 )
+
+
+async def check_access_to_chat(conn: asyncpg.Connection, chat_id: int, user_id: int) -> bool:
+    """Check if the user is a member of the chat."""
+    result = await conn.fetchval(
+        """
+        SELECT EXISTS (SELECT 1
+                       FROM general.user_chats
+                       WHERE user_id = $1
+                         AND chat_id = $2)
+        """,
+        user_id,
+        chat_id,
+    )
+    return result is True
+
 
 CHAT_SOURCE_MAPPING = {
     "telegram": 0,

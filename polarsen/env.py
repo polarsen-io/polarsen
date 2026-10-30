@@ -24,6 +24,12 @@ GROK_API_KEY = os.environ.get("GROK_API_KEY")
 # Self-Hosted OpenAI
 SCALEWAY_API_KEY = os.environ.get("SCALEWAY_API_KEY")
 
+# API
+
+# /chats/upload reads the export to find its target chat, so cap the body it
+# will buffer in memory.
+CHAT_UPLOAD_MAX_BYTES = int(os.getenv("CHAT_UPLOAD_MAX_BYTES", 256 * 1024 * 1024))
+
 # S3
 
 CHAT_UPLOADS_S3_BUCKET = os.getenv("CHAT_UPLOADS_S3_BUCKET")

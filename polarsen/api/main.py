@@ -1,8 +1,9 @@
+import json
 import os
 from contextlib import asynccontextmanager
 from typing import Any
 import asyncpg
-from collections.abc import Mapping
+from collections.abc import AsyncIterator, Mapping
 
 from fastapi import FastAPI, Depends, Query, Request
 from fastapi.responses import JSONResponse
@@ -13,8 +14,8 @@ from polarsen.logs import logs
 from polarsen.s3_utils import s3_file_upload, s3_delete_object
 from polarsen.utils import compute_md5
 from polarsen import env
-from .data import User as UserDB, Question as QuestionDB
-from polarsen.db import ChatUpload as ChatUploadDB
+from .data import User as UserDB, Question as QuestionDB, check_access_to_chat
+from polarsen.db import ChatUpload as ChatUploadDB, DbChat
 from .dependencies import connect_pg, get_conn, get_client, get_s3_client
 from .models import NewUser, User, AIModel, AskQuestion, EmbeddingResult, Status, ChatUpload, ChatType
 from .utils import APIException, get_user, ErrorCode
@@ -114,6 +115,12 @@ async def _ask_question(
     session=Depends(get_client),
 ) -> AskQuestion:
     """Ask a question regarding a chat."""
+    if not await check_access_to_chat(conn, chat_id, user_id):
+        raise APIException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            reason=f"User {user_id} does not have access to chat {chat_id}",
+            error_code=ErrorCode.forbidden,
+        )
     chat_sessions = ChatSession.get_session(model_name=model, api_key=api_key, rag_api_key=env.MISTRAL_API_KEY or "")
     chat_username = await UserDB.get_telegram_chat_username(conn, chat_id, user_id)
     with set_auth_headers(session, api_key):
@@ -140,6 +147,54 @@ async def _ask_question(
     return AskQuestion(response=resp, results=results, question_id=question_id)
 
 
+async def _read_export_body(request: Request, max_bytes: int) -> bytes:
+    """Read the export body, rejecting it as soon as it grows past max_bytes."""
+    chunks: list[bytes] = []
+    size = 0
+    async for chunk in request.stream():
+        size += len(chunk)
+        if size > max_bytes:
+            raise APIException(
+                status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+                reason=f"Export exceeds the {max_bytes} byte upload limit",
+                error_code=ErrorCode.invalid_file,
+            )
+        chunks.append(chunk)
+    return b"".join(chunks)
+
+
+async def _iter_body(content: bytes) -> AsyncIterator[bytes]:
+    """Yield an already-read body as a stream for the S3 upload."""
+    yield content
+
+
+def _get_export_chat_internal_code(content: bytes) -> str | None:
+    """Return the chat internal code declared by an exported chat file, if it can be read."""
+    try:
+        export = json.loads(content)
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        return None
+    if not isinstance(export, dict) or "id" not in export:
+        return None
+    return str(export["id"])
+
+
+async def _check_upload_target_access(conn: asyncpg.Connection, user_id: int, content: bytes) -> None:
+    """Reject an upload that would merge into an existing chat the uploader cannot access."""
+    internal_code = _get_export_chat_internal_code(content)
+    if internal_code is None:
+        return
+    chat_id = (await DbChat.get_ids(conn, [internal_code])).get(internal_code)
+    if chat_id is None:
+        return
+    if not await check_access_to_chat(conn, chat_id, user_id):
+        raise APIException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            reason=f"User {user_id} does not have access to chat {chat_id}",
+            error_code=ErrorCode.forbidden,
+        )
+
+
 @app.post("/chats/upload", tags=[CHAT_TAG])
 async def _upload_chat(
     request: Request,
@@ -147,11 +202,18 @@ async def _upload_chat(
     filename: str,
     mime_type: str,
     chat_type: ChatType,
+    chat_id: int | None = None,
     conn=Depends(get_conn),
     s3=Depends(get_s3_client),
     session=Depends(get_client),
 ) -> ChatUpload:
     """Upload a chat file."""
+    if chat_id is not None and not await check_access_to_chat(conn, chat_id, user_id):
+        raise APIException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            reason=f"User {user_id} does not have access to chat {chat_id}",
+            error_code=ErrorCode.forbidden,
+        )
     # TODO: Fix that later and use Content-Length
     _content_length = request.headers.get("X-Content-Length")
     if _content_length is None:
@@ -161,6 +223,14 @@ async def _upload_chat(
             error_code=ErrorCode.invalid_headers,
         )
     content_length = int(_content_length)
+    max_bytes = env.CHAT_UPLOAD_MAX_BYTES
+    if content_length > max_bytes:
+        raise APIException(
+            status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+            reason=f"Export exceeds the {max_bytes} byte upload limit",
+            error_code=ErrorCode.invalid_file,
+        )
+    content = await _read_export_body(request, max_bytes=max_bytes)
     get_hash, update_hash = compute_md5()
 
     file_path = f"{user_id}/{filename}"
@@ -184,10 +254,11 @@ async def _upload_chat(
     if not bucket:
         raise ValueError("CHAT_UPLOADS_S3_BUCKET must be set")
     async with conn.transaction():
+        await _check_upload_target_access(conn, user_id, content)
         await s3_file_upload(
             s3,
             session,
-            data=request.stream(),
+            data=_iter_body(content),
             bucket=bucket,
             key=file_path,
             on_chunk_received=update_hash,
