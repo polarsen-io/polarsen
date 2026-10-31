@@ -27,6 +27,7 @@ from telegram.ext import (
 from polarsen.logs import logs
 from .data import User, UserState, ask_question, give_feedback, upload_chat
 from .env import API_URI
+from .html import escape_html, sanitize_html
 from .intl import TranslateFn
 from .models import Chat, ChatUpload
 from .models import EmbeddingResult
@@ -151,7 +152,7 @@ async def handle_message(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
 
-        await update.message.reply_html(response, reply_markup=reply_markup)
+        await update.message.reply_html(sanitize_html(response), reply_markup=reply_markup)
     else:
         await update.message.reply_text(user.t("unknown_command"))
 
@@ -347,7 +348,12 @@ def fmt_chats(chats: list[Chat], uploads: list[ChatUpload], t: TranslateFn) -> s
         html += textwrap.dedent(
             """
         - {id} <i>{name}</i> ({last_message}: {cutoff_date})
-        """.format(**chat, last_message=t("last_message"))
+        """.format(
+                id=chat["id"],
+                name=escape_html(chat["name"]),
+                last_message=t("last_message"),
+                cutoff_date=escape_html(chat["cutoff_date"]),
+            )
         )
     msg, upload_msg = None, None
     if html:
@@ -362,10 +368,10 @@ def fmt_chats(chats: list[Chat], uploads: list[ChatUpload], t: TranslateFn) -> s
             """
         - {file_id} <i>{filename}</i> ({chat_type}, {created_at})
         """.format(
-                created_at=upload["created_at"].split("T")[0],
-                chat_type=upload["chat_type"],
-                file_id=upload["file_id"],
-                filename=upload["filename"],
+                created_at=escape_html(upload["created_at"].split("T")[0]),
+                chat_type=escape_html(upload["chat_type"]),
+                file_id=escape_html(upload["file_id"]),
+                filename=escape_html(upload["filename"]),
             )
         )
     if html:
@@ -388,7 +394,18 @@ def _fmt_summaries(summaries: list[EmbeddingResult]) -> str:
     return "\n\n" + textwrap.dedent("""
     <b>Context results:</b>
     {}
-    """).format("\n".join(["\n\n <b>{title}</b> ({day})\n{summary}".format(**s) for s in summaries]))
+    """).format(
+        "\n".join(
+            [
+                "\n\n <b>{title}</b> ({day})\n{summary}".format(
+                    title=escape_html(s["title"]),
+                    day=escape_html(s["day"]),
+                    summary=escape_html(s["summary"]),
+                )
+                for s in summaries
+            ]
+        )
+    )
 
 
 class CallbackPrefix(Enum):
