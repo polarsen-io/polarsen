@@ -29,7 +29,7 @@ services:
       - db-data:/var/lib/postgresql
 
   s3:
-    image: chainguard/minio  # official quay/Docker Hub images now require auth
+    image: chainguard/minio@sha256:3b6e40c30ecd5cea627e382ff0b82ca841f58c52294578787043ee80c8ef7c82  # official quay/Docker Hub images now require auth
     restart: unless-stopped
     ports:
       - "127.0.0.1:9001:9001"
