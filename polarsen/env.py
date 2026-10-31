@@ -24,6 +24,13 @@ GROK_API_KEY = os.environ.get("GROK_API_KEY")
 # Self-Hosted OpenAI
 SCALEWAY_API_KEY = os.environ.get("SCALEWAY_API_KEY")
 
+# Chat ingestion
+# Number of failed segmentation attempts before a chat is marked as failed and no longer retried.
+MAX_INGESTION_RETRIES = int(os.getenv("MAX_INGESTION_RETRIES", "5"))
+# Exponential backoff between attempts: base delay in seconds, capped at the maximum delay.
+INGESTION_RETRY_BASE_DELAY = float(os.getenv("INGESTION_RETRY_BASE_DELAY", "30"))
+INGESTION_RETRY_MAX_DELAY = float(os.getenv("INGESTION_RETRY_MAX_DELAY", "3600"))
+
 # S3
 
 CHAT_UPLOADS_S3_BUCKET = os.getenv("CHAT_UPLOADS_S3_BUCKET")

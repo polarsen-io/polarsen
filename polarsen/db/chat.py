@@ -5,6 +5,7 @@ import asyncpg
 from rich.progress import track
 from tracktolib.pg import insert_many, PGConflictQuery, insert_returning
 
+from polarsen import env
 from polarsen.logs import logs
 from .utils import TableID
 
@@ -101,20 +102,49 @@ class DbChat(TableID):
         )
 
     @staticmethod
-    async def set_processing_error(conn: asyncpg.Connection, chat_ids: list[int], message: str | None = None) -> None:
-        """Set the chats as error in the meta field."""
-        await conn.execute(
+    async def set_processing_error(
+        conn: asyncpg.Connection,
+        chat_ids: list[int],
+        message: str | None = None,
+        *,
+        max_retries: int = env.MAX_INGESTION_RETRIES,
+        base_delay: float = env.INGESTION_RETRY_BASE_DELAY,
+        max_delay: float = env.INGESTION_RETRY_MAX_DELAY,
+    ) -> list[asyncpg.Record]:
+        """
+        Record a failed attempt in the meta field.
+
+        Increments the attempt counter, schedules the next retry with exponential backoff, and
+        sets the status to 'failed' once the attempt count reaches ``max_retries``.
+        Returns one record per chat with ``id``, ``internal_code``, ``attempts`` and ``status``.
+        """
+        return await conn.fetch(
             """
-            UPDATE general.chats 
-            SET meta = COALESCE(meta, '{}') || jsonb_build_object(
-                    'processing_error_at', now(),
-                    'status', 'error',
-                    'error_message', $2::text
+            WITH retried AS (
+                SELECT id, COALESCE((meta ->> 'attempts')::int, 0) + 1 AS attempts
+                FROM general.chats
+                WHERE id = ANY($1)
             )
-            WHERE id = ANY($1)
+            UPDATE general.chats c
+            SET meta = COALESCE(c.meta, '{}') || jsonb_build_object(
+                    'processing_error_at', now(),
+                    'status', CASE WHEN r.attempts >= $3 THEN 'failed' ELSE 'error' END,
+                    'error_message', $2::text,
+                    'attempts', r.attempts,
+                    'retry_after', CASE
+                        WHEN r.attempts >= $3 THEN NULL
+                        ELSE now() + make_interval(secs => LEAST($4 * power(2, r.attempts - 1), $5))
+                    END
+            )
+            FROM retried r
+            WHERE c.id = r.id
+            RETURNING c.id, c.internal_code, r.attempts, c.meta ->> 'status' AS status
             """,
             chat_ids,
             message,
+            max_retries,
+            base_delay,
+            max_delay,
         )
 
     @staticmethod
@@ -123,10 +153,10 @@ class DbChat(TableID):
         await conn.execute(
             """
             UPDATE general.chats 
-            SET meta = COALESCE(meta, '{}') || jsonb_build_object(
+            SET meta = (COALESCE(meta, '{}') || jsonb_build_object(
                     'processing_done_at', now(),
                     'status', 'done'
-            ) - 'processing_error' - 'error_message'
+            )) - 'processing_error' - 'processing_error_at' - 'error_message' - 'attempts' - 'retry_after'
             WHERE id = ANY($1)
             """,
             chat_ids,

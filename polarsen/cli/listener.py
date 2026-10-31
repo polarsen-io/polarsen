@@ -7,6 +7,7 @@ import botocore.client
 import niquests
 
 
+from polarsen import env
 from polarsen.ai.conversations import v2
 from polarsen.ai.embeddings import gen_groups_embeddings, DEFAULT_EMBEDDING_MODEL, EmbeddingGroup, EmbeddingGroupAdapter
 from polarsen.common.utils import get_source_from_model, AISource
@@ -59,7 +60,9 @@ async def _get_chats_not_grouped(
     conn: asyncpg.Connection, source: AISource, limit: int = 1, only_with_keys: bool = True
 ) -> list[asyncpg.Record]:
     """
-    Get chats that are not yet grouped - with status not in ('processing', 'done') - and lock them for processing.
+    Get chats that are not yet grouped and are due for a retry.
+    Chats with status 'processing', 'done' or 'failed' are skipped, as are chats whose
+    exponential backoff delay (meta.retry_after) has not elapsed.
     If only_with_keys is True, only return chats where the user has an API key for the given source.
     """
     records = await conn.fetch(
@@ -67,7 +70,8 @@ async def _get_chats_not_grouped(
         SELECT mg.id, mg.created_by, u.api_keys ->> $2 AS api_key, u.id AS user_id
         FROM general.chats mg
                  LEFT JOIN general.users u ON u.id = mg.created_by
-        WHERE (mg.meta ->> 'status' IS NULL OR mg.meta ->> 'status' NOT IN ('processing', 'done'))
+        WHERE (mg.meta ->> 'status' IS NULL OR mg.meta ->> 'status' NOT IN ('processing', 'done', 'failed'))
+          AND COALESCE((mg.meta ->> 'retry_after')::timestamptz, '-infinity') <= now()
           AND CASE WHEN $3 THEN u.api_keys ->> $2 IS NOT NULL ELSE TRUE END
         ORDER BY mg.id
             FOR UPDATE OF mg SKIP LOCKED
@@ -136,7 +140,21 @@ async def process_chat_groups_worker(
                             )
                         except Exception as e:
                             worker_log.error(f"Error processing chat {_chat_id}: {e}")
-                            await DbChat.set_processing_error(conn, [_chat_id], message=str(e))
+                            _results = await DbChat.set_processing_error(
+                                conn,
+                                [_chat_id],
+                                message=str(e),
+                                max_retries=env.MAX_INGESTION_RETRIES,
+                                base_delay=env.INGESTION_RETRY_BASE_DELAY,
+                                max_delay=env.INGESTION_RETRY_MAX_DELAY,
+                            )
+                            for _result in _results:
+                                if _result["status"] == "failed":
+                                    worker_log.warning(
+                                        f"Chat {_result['id']} ({_result['internal_code']}) failed "
+                                        f"{_result['attempts']} times, giving up "
+                                        f"(MAX_INGESTION_RETRIES={env.MAX_INGESTION_RETRIES})"
+                                    )
                             if not run_forever:
                                 raise e
                         else:
