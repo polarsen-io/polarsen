@@ -28,7 +28,7 @@ GROUPING_V2 = GroupMethod(name="v2", internal_code="v2")
 
 BASE_TEMP = 0
 
-SEGMENTATION_MODEL = "gemini-2.5-flash-preview-05-20"
+SEGMENTATION_MODEL = "gemini-2.5-flash-preview-09-2025"
 
 
 class MessageLite(TypedDict):

@@ -17,6 +17,7 @@ from .listener import (
     process_chat_worker,
     process_chat_groups_worker,
     process_embeddings_worker,
+    process_stuck_chats_worker,
     DEFAULT_EMBEDDING_MODEL,
 )
 
@@ -96,6 +97,8 @@ async def _listen_chat_groups(
         DEFAULT_EMBEDDING_MODEL, "--embedding-model", help="Model to use for embeddings"
     ),
     temperature: float | None = Option(None, "--temperature", help="[V2] Model temperature"),
+    debug: bool = Option(False, "--debug", help="Raise exceptions on errors instead of logging"),
+    stuck_threshold: int = Option(30, "--stuck-threshold", help="Minutes before a stuck chat is reset"),
 ):
     """
     Listen for new chats to be grouped into discussions and process them indefinitely.
@@ -111,6 +114,9 @@ async def _listen_chat_groups(
 
     async with get_pool(pg_url) as pool:
         async with asyncio.TaskGroup() as tg:
+            # Single worker to reset stuck chats
+            tg.create_task(process_stuck_chats_worker(pool, debug=debug, threshold_minutes=stuck_threshold))
+
             for worker_id in range(nb_workers):
                 tg.create_task(
                     process_chat_groups_worker(pool, sleep_no_data=sleep_no_data, worker_id=worker_id, params=params)

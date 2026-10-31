@@ -29,11 +29,15 @@ __all__ = (
 )
 
 
-def set_headers(session: niquests.Session, api_key: str | None = None) -> None:
+HEADER_KEY = "Authorization"
+
+
+def set_headers(session: niquests.Session, api_key: str | None = None) -> str:
     _api_key = api_key or MISTRAL_API_KEY
     if _api_key is None:
         raise ValueError("MISTRAL_API_KEY is not set")
-    session.headers["Authorization"] = f"Bearer {_api_key}"
+    session.headers[HEADER_KEY] = f"Bearer {_api_key}"
+    return HEADER_KEY
 
 
 def _check_resp(resp: niquests.Response) -> dict:

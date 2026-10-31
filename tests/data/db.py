@@ -28,6 +28,8 @@ __all__ = (
     "gen_message_group",
     "MessageGroupChat",
     "gen_message_group_chat",
+    "MistralGroupEmbedding",
+    "gen_mistral_group_embedding",
     "DEFAULT_DATETIME",
 )
 
@@ -307,4 +309,21 @@ def gen_message_group_chat(group_id: int, chat_id: int, msg_id: int) -> MessageG
         "group_id": group_id,
         "chat_id": chat_id,
         "msg_id": msg_id,
+    }
+
+
+class MistralGroupEmbedding(TypedDict):
+    id: int
+    group_id: int
+    embedding: list[float]
+
+
+def gen_mistral_group_embedding(group_id: int, embedding: list[float] | None = None) -> MistralGroupEmbedding:
+    _id = Fake.id()
+    # Default: random 1024-dim embedding
+    _embedding = embedding if embedding is not None else [Fake.random.random() for _ in range(1024)]
+    return {
+        "id": _id,
+        "group_id": group_id,
+        "embedding": _embedding,
     }

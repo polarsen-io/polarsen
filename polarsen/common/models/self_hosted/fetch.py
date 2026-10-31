@@ -15,10 +15,14 @@ from .utils import SELF_HOSTED_ENDPOINTS
 __all__ = ("set_headers", "fetch_chat_completion")
 
 
-def set_headers(session: niquests.Session):
+HEADER_KEY = "Authorization"
+
+
+def set_headers(session: niquests.Session) -> str:
     if SCALEWAY_API_KEY is None:
         raise ValueError("SCALEWAY_API_KEY is not set")
-    session.headers["Authorization"] = f"Bearer {SCALEWAY_API_KEY}"
+    session.headers[HEADER_KEY] = f"Bearer {SCALEWAY_API_KEY}"
+    return HEADER_KEY
 
 
 async def fetch_chat_completion(

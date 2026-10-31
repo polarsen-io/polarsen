@@ -1,0 +1,19 @@
+[fr]
+start = "Démarrer le bot"
+help = "Afficher l'aide"
+stop = "Arrêter le bot"
+select_chats = "Sélectionner un groupe"
+list_chats = "Lister tous les groupes"
+select_ai = "Sélectionner un modèle IA"
+add_chat = "Ajouter un groupe"
+ask = "Poser une question: /ask <question>"
+
+[en]
+start = "Start the bot"
+help = "Show help message"
+stop = "Stop the bot"
+select_chats = "Select a chat"
+list_chats = "List all chats"
+select_ai = "Select an AI model"
+add_chat = "Add a new chat"
+ask = "Ask a question: /ask <question>"

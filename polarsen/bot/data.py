@@ -43,6 +43,7 @@ class User:
     selected_model: str | None = None
     state: UserState = UserState.NORMAL
     last_question: LastQuestion | None = None
+    pending_question: str | None = None  # Question to ask after API key is set
 
     @property
     def selected_chat_name(self) -> str | None:
@@ -164,8 +165,8 @@ def _check_response(resp: niquests.Response) -> dict:
 _AskQuestionAdapter = TypeAdapter(models.AskQuestion)
 
 
-async def ask_question(chat_id: int, question: str, model: str, api_key: str, user_id: int) -> models.AskQuestion:
-    params = {"question": question, "model": model, "api_key": api_key, "user_id": user_id}
+async def ask_question(chat_id: int, question: str, model: str, user_id: int) -> models.AskQuestion:
+    params = {"question": question, "model": model, "user_id": user_id}
     async with AsyncSession() as session:
         resp = await session.get(f"{API_URI}/chats/{chat_id}/ask", params=params)
     return _AskQuestionAdapter.validate_python(_check_response(resp))

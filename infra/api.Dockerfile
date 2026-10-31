@@ -31,8 +31,8 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 
 FROM python:3.13-alpine AS main
 
-ARG version
-ENV VERSION=$version
+ARG VERSION
+ENV VERSION=$VERSION
 ARG PROJECT_MODE
 ENV PROJECT_MODE=$PROJECT_MODE
 

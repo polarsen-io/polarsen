@@ -23,12 +23,13 @@ dev = [
     "faker>=37.6.0",
     "tracktolib>=0.57.0",
     "pre-commit>=4.3.0",
+    "deepdiff>=8.6.1",
     {include-group = "default"},
     {include-group = "llms"},
     {include-group = "api"},
     {include-group = "telegram"},
     {include-group = "bump"},
-    {include-group = "cli"}
+    {include-group = "cli"},
 ]
 
 default = [

@@ -9,7 +9,14 @@ import random
 
 from polarsen.logs import logs
 
-__all__ = ("parse_thinking", "parse_json_response", "JsonResponseError", "TooManyRequestsError", "retry_async")
+__all__ = (
+    "parse_thinking",
+    "parse_json_response",
+    "JsonResponseError",
+    "TooManyRequestsError",
+    "QuotaExceededError",
+    "retry_async",
+)
 
 
 def parse_thinking(resp: str, key: str = "think") -> tuple[str, str | None]:
@@ -106,6 +113,13 @@ class TooManyRequestsError(Exception):
             logs.debug("Too many request text Body", self.response.headers)
 
 
+@dataclass
+class QuotaExceededError(Exception):
+    """Raised when API quota is exceeded (not retryable)."""
+
+    body: dict
+
+
 def check_http_response(resp: niquests.Response) -> dict:
     try:
         resp.raise_for_status()
@@ -152,10 +166,6 @@ def retry_async(
                     last_exception = e
 
                     if attempt == max_attempts:
-                        logs.error(
-                            f"Function {func.__name__} failed after {max_attempts} attempts. "
-                            f"Final error: {type(e).__name__}: {e}"
-                        )
                         if reraise_on_final_attempt:
                             raise
                         return None
@@ -185,9 +195,8 @@ def retry_async(
                     await asyncio.sleep(actual_delay)
                     if _backoff_factor is not None:
                         current_delay *= _backoff_factor
-                except Exception as e:
-                    # Non-retryable exception
-                    logs.error(f"Function {func.__name__} failed with non-retryable exception: {type(e).__name__}: {e}")
+                except Exception:
+                    # Non-retryable exception - let caller handle logging
                     raise
 
             # This should never be reached, but just in case

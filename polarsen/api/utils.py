@@ -62,6 +62,8 @@ class ErrorCode(Enum):
     payment_error = "payment_error"
     # Email
     email_error = "email_error"
+    # External services
+    missing_api_key = "missing_api_key"
 
 
 class APIException(Exception):
