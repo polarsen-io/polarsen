@@ -18,6 +18,9 @@ os.environ["S3_ENDPOINT"] = os.getenv("S3_ENDPOINT", "http://localhost:9000")
 os.environ["S3_ACCESS_KEY_ID"] = os.getenv("S3_ACCESS_KEY_ID", "minioadmin")
 os.environ["S3_SECRET_ACCESS_KEY"] = os.getenv("S3_SECRET_ACCESS_KEY", "minioadmin")
 
+# Deterministic test key for application-level encryption (Fernet, 32 url-safe base64 bytes).
+os.environ.setdefault("POLARSEN_KMS_KEY", "zXJfQ6mC7HNrV7e8c3kE_h4Yl1m9sFaT_oP2wQrX0vY=")
+
 
 @pytest.fixture(scope="session")
 def engine():
