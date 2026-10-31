@@ -201,3 +201,79 @@ def test_embeddings_listener(loop, engine, monkeypatch, test_param):
         loop.run_until_complete(_test())
 
     test_param.check_fn(engine, test_param.mock_fn)
+
+
+def _run_embeddings_once(loop, *, expect_error: bool):
+    from polarsen.cli.listener import process_embeddings_worker
+    from polarsen.pg import get_pool
+
+    async def _test():
+        async with get_pool(PG_URL) as pool:
+            await process_embeddings_worker(
+                pool=pool,
+                worker_id=0,
+                sleep_no_data=0,
+                run_forever=False,
+                embedding_model="mistral-embed",
+            )
+
+    ctx = pytest.raises(Exception) if expect_error else nullcontext()
+    with ctx:
+        loop.run_until_complete(_test())
+
+
+def _set_retry_config(monkeypatch, *, max_retries: int, base_delay: float):
+    monkeypatch.setattr("polarsen.cli.listener.env.MAX_INGESTION_RETRIES", max_retries)
+    monkeypatch.setattr("polarsen.cli.listener.env.INGESTION_RETRY_BASE_DELAY", base_delay)
+    monkeypatch.setattr("polarsen.cli.listener.env.INGESTION_RETRY_MAX_DELAY", base_delay)
+
+
+def test_embeddings_stops_after_retry_budget(loop, engine, monkeypatch):
+    _insert_message_groups(engine)
+    mock = unittest.mock.AsyncMock(side_effect=Exception("boom"))
+    monkeypatch.setattr("polarsen.cli.listener.gen_groups_embeddings", mock)
+    _set_retry_config(monkeypatch, max_retries=2, base_delay=0)
+
+    _run_embeddings_once(loop, expect_error=True)
+    _run_embeddings_once(loop, expect_error=True)
+    # Both groups are now 'failed', so the listener no longer selects them.
+    _run_embeddings_once(loop, expect_error=False)
+    _run_embeddings_once(loop, expect_error=False)
+
+    groups = fetch_all(engine, "select id, meta from ai.message_groups order by id")
+    assert mock.await_count == 2, "Embeddings should run exactly max_retries times"
+    for group in groups:
+        assert group["meta"]["attempts"] == 2
+        assert group["meta"]["embeddings_status"] == "failed"
+
+
+def test_embeddings_waits_for_retry_backoff(loop, engine, monkeypatch):
+    _insert_message_groups(engine)
+    mock = unittest.mock.AsyncMock(side_effect=Exception("boom"))
+    monkeypatch.setattr("polarsen.cli.listener.gen_groups_embeddings", mock)
+    _set_retry_config(monkeypatch, max_retries=5, base_delay=3600)
+
+    _run_embeddings_once(loop, expect_error=True)
+    _run_embeddings_once(loop, expect_error=False)
+
+    groups = fetch_all(engine, "select id, meta from ai.message_groups order by id")
+    assert mock.await_count == 1, "Backoff should defer the second attempt"
+    for group in groups:
+        assert group["meta"]["attempts"] == 1
+        assert group["meta"]["embeddings_status"] == "error"
+
+
+def test_embeddings_succeeds_on_retry(loop, engine, monkeypatch):
+    _insert_message_groups(engine)
+    mock = unittest.mock.AsyncMock(side_effect=[Exception("boom"), None])
+    monkeypatch.setattr("polarsen.cli.listener.gen_groups_embeddings", mock)
+    _set_retry_config(monkeypatch, max_retries=5, base_delay=0)
+
+    _run_embeddings_once(loop, expect_error=True)
+    _run_embeddings_once(loop, expect_error=False)
+
+    groups = fetch_all(engine, "select id, meta from ai.message_groups order by id")
+    assert mock.await_count == 2
+    for group in groups:
+        assert group["meta"]["embeddings_status"] == "done"
+        assert "attempts" not in group["meta"]

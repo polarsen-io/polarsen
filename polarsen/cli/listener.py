@@ -7,6 +7,7 @@ import botocore.client
 import niquests
 
 
+from polarsen import env
 from polarsen.ai.conversations import v2
 from polarsen.ai.embeddings import gen_groups_embeddings, DEFAULT_EMBEDDING_MODEL, EmbeddingGroup, EmbeddingGroupAdapter
 from polarsen.common.utils import get_source_from_model, AISource
@@ -154,7 +155,9 @@ async def process_chat_groups_worker(
 async def _get_groups_not_embedded(conn: asyncpg.Connection, limit: int = 1) -> list[EmbeddingGroup]:
     """
     Get chat groups that do not have embeddings yet - i.e., no relation exists in ai.mistral_group_embeddings -
-    and lock them for processing.
+    and are due for a retry, and lock them for processing.
+    Groups with status 'processing' or 'failed' are skipped, as are groups whose
+    exponential backoff delay (meta.retry_after) has not elapsed.
     """
     records = await conn.fetch(
         """
@@ -169,8 +172,10 @@ async def _get_groups_not_embedded(conn: asyncpg.Connection, limit: int = 1) -> 
             WHERE m.group_id = mg.id
               AND cm.message <> ''
             ) msg ON TRUE
-              -- Ignoring groups that are currently being processed
-        WHERE COALESCE(mg.meta ->> 'embeddings_status' <> 'processing', TRUE)
+              -- Ignoring groups that are currently being processed or that exhausted their retries
+        WHERE COALESCE(mg.meta ->> 'embeddings_status', '') NOT IN ('processing', 'failed')
+             -- Only groups whose backoff delay has elapsed
+             AND COALESCE((mg.meta ->> 'retry_after')::timestamptz, '-infinity') <= now()
              -- Only groups without embeddings yet
              AND cge.id IS NULL
         ORDER BY mg.id
@@ -214,7 +219,21 @@ async def process_embeddings_worker(
                         await gen_groups_embeddings(conn, session, groups=_groups, model_name=embedding_model)
                     except Exception as e:
                         worker_log.error(f"Error processing {len(_groups)} groups: {e}")
-                        await MessageGroup.set_processing_error(conn, _group_ids, message=str(e))
+                        _results = await MessageGroup.set_processing_error(
+                            conn,
+                            _group_ids,
+                            message=str(e),
+                            max_retries=env.MAX_INGESTION_RETRIES,
+                            base_delay=env.INGESTION_RETRY_BASE_DELAY,
+                            max_delay=env.INGESTION_RETRY_MAX_DELAY,
+                        )
+                        for _result in _results:
+                            if _result["status"] == "failed":
+                                worker_log.warning(
+                                    f"Group {_result['id']} ({_result['internal_code']}) failed "
+                                    f"{_result['attempts']} times, giving up "
+                                    f"(MAX_INGESTION_RETRIES={env.MAX_INGESTION_RETRIES})"
+                                )
                         _processing_ids = None  # Clear to prevent reset in outer except block
                         if not run_forever:
                             raise e

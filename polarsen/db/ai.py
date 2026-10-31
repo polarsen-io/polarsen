@@ -9,6 +9,7 @@ from typing import Literal, Iterable, TypedDict, NotRequired
 import asyncpg
 from tracktolib.pg import insert_many, PGConflictQuery, insert_returning, insert_one, update_one
 
+from polarsen import env
 from .utils import TableID
 
 __all__ = (
@@ -103,20 +104,49 @@ class MessageGroup(TableID):
         )
 
     @staticmethod
-    async def set_processing_error(conn: asyncpg.Connection, group_ids: list[int], message: str | None = None) -> None:
-        """Set the chats as error in the meta field."""
-        await conn.execute(
+    async def set_processing_error(
+        conn: asyncpg.Connection,
+        group_ids: list[int],
+        message: str | None = None,
+        *,
+        max_retries: int = env.MAX_INGESTION_RETRIES,
+        base_delay: float = env.INGESTION_RETRY_BASE_DELAY,
+        max_delay: float = env.INGESTION_RETRY_MAX_DELAY,
+    ) -> list[asyncpg.Record]:
+        """
+        Record a failed embeddings attempt in the meta field.
+
+        Increments the attempt counter, schedules the next retry with exponential backoff, and
+        sets the status to 'failed' once the attempt count reaches ``max_retries``.
+        Returns one record per group with ``id``, ``internal_code``, ``attempts`` and ``status``.
+        """
+        return await conn.fetch(
             """
-            UPDATE ai.message_groups
-            SET meta = COALESCE(meta, '{}') || jsonb_build_object(
-                    'embeddings_error_at', now(),
-                    'embeddings_status', 'error',
-                    'embeddings_error_message', $2::text
+            WITH retried AS (
+                SELECT id, COALESCE((meta ->> 'attempts')::int, 0) + 1 AS attempts
+                FROM ai.message_groups
+                WHERE id = ANY($1)
             )
-            WHERE id = ANY($1)
+            UPDATE ai.message_groups mg
+            SET meta = COALESCE(mg.meta, '{}') || jsonb_build_object(
+                    'embeddings_error_at', now(),
+                    'embeddings_status', CASE WHEN r.attempts >= $3 THEN 'failed' ELSE 'error' END,
+                    'embeddings_error_message', $2::text,
+                    'attempts', r.attempts,
+                    'retry_after', CASE
+                        WHEN r.attempts >= $3 THEN NULL
+                        ELSE now() + make_interval(secs => LEAST($4 * power(2, r.attempts - 1), $5))
+                    END
+            )
+            FROM retried r
+            WHERE mg.id = r.id
+            RETURNING mg.id, mg.internal_code, r.attempts, mg.meta ->> 'embeddings_status' AS status
             """,
             group_ids,
             message,
+            max_retries,
+            base_delay,
+            max_delay,
         )
 
     @staticmethod
@@ -125,10 +155,10 @@ class MessageGroup(TableID):
         await conn.execute(
             """
             UPDATE ai.message_groups
-            SET meta = COALESCE(meta, '{}') || jsonb_build_object(
+            SET meta = (COALESCE(meta, '{}') || jsonb_build_object(
                     'embeddings_done_at', now(),
                     'embeddings_status', 'done'
-            ) - 'embeddings_error_at' - 'embeddings_error_message'
+            )) - 'embeddings_error_at' - 'embeddings_error_message' - 'attempts' - 'retry_after'
             WHERE id = ANY($1)
             """,
             group_ids,
