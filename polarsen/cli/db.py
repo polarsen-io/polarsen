@@ -4,7 +4,7 @@ from piou import CommandGroup, Password, Option
 from tracktolib.pg import insert_many
 from tracktolib.utils import exec_cmd
 
-from polarsen.env import SQL_DIR
+from polarsen.env import SQL_DIR, get_pg_password
 from polarsen.logs import logs
 from polarsen.pg import get_conn
 from polarsen.utils import PgHost, PgPort, PgUser, PgPassword, PgDatabase
@@ -22,11 +22,13 @@ async def _setup_db(
     pg_host: str = PgHost,
     pg_port: int = PgPort,
     pg_user: str = PgUser,
-    pg_password: Password = PgPassword,
+    pg_password: Password | None = PgPassword,
     pg_database: str = PgDatabase,
     no_data: bool = Option(False, "--no-data", help="Do not insert initial data"),
 ):
     os.environ["SHELL"] = "/bin/sh"
+
+    pg_password = pg_password or Password(get_pg_password())
 
     _pg_url_no_db = f"postgresql://{pg_user}:{pg_password}@{pg_host}:{pg_port}"
 

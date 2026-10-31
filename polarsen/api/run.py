@@ -6,6 +6,8 @@ import uvicorn
 from piou import CommandGroup
 from piou import Option, Derived
 
+from polarsen import env
+
 __all__ = ("api_group",)
 
 api_group = CommandGroup("api", help="API commands")
@@ -29,7 +31,7 @@ def start_api(
     dev: bool = Option(False, "--dev", help="Run in dev mode"),
     access_log: bool = Option(False, "--show-access-log", help="Enable access log"),
 ):
-    os.environ["_PG_URL"] = os.environ["PG_DSN"]
+    os.environ["_PG_URL"] = env.get_pg_dsn()
     uvicorn.run(
         "polarsen.api.main:app",
         host=host,
