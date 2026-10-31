@@ -128,13 +128,13 @@ _GET_USER_QUERY = """
                          api_keys,
                          meta
                   from general.users
-                  where ($1::int is null or id = $1)
-                     OR ($2::text is not null and telegram_id = $2)
+                  where ($1::int is not null AND id = $1)
+                     OR ($1::int is null AND $2::text is not null AND telegram_id = $2)
                   """
 
 
 async def get_user(conn: asyncpg.Connection, user_id: int | None = None, telegram_id: str | None = None) -> User | None:
-    """Load user data by user ID."""
+    """Load user data by user ID or Telegram ID."""
     if user_id is None and telegram_id is None:
         raise ValueError("Either user_id or telegram_id must be provided")
     user = await conn.fetchrow(
