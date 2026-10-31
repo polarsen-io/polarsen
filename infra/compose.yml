@@ -69,6 +69,7 @@ services:
       - S3_SECRET_ACCESS_KEY=${S3_SECRET_ACCESS_KEY:-minioadmin}
       - S3_ENDPOINT=${S3_ENDPOINT:-http://s3:9000}
       - CHAT_UPLOADS_S3_BUCKET=${CHAT_UPLOADS_S3_BUCKET:-chat-uploads}
+      - INTERNAL_API_TOKEN=${INTERNAL_API_TOKEN:?INTERNAL_API_TOKEN must be set in infra/.env}
     command: [ "start", "-vv" ]
     ports:
       - "127.0.0.1:5050:5050"
@@ -101,6 +102,7 @@ services:
     environment:
       - PYTHONUNBUFFERED=1
       - API_URL=${API_URL:-http://api:5050}
+      - INTERNAL_API_TOKEN=${INTERNAL_API_TOKEN:?INTERNAL_API_TOKEN must be set in infra/.env}
     command: [ "start", "-vv" ]
     depends_on:
       - api

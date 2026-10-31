@@ -11,7 +11,7 @@ from telegram import User as TelegramUser
 from polarsen.common.utils import AISource, get_source_from_model, is_valid_source
 from polarsen.logs import logs
 from . import models
-from .env import API_URI
+from .env import API_URI, api_headers
 from .intl import i18n
 
 __all__ = ("User", "UserState", "ask_question", "give_feedback", "upload_chat")
@@ -92,7 +92,7 @@ class User:
         if not data:
             return
         async with AsyncSession() as session:
-            resp = await session.post(f"{API_URI}/users/bulk", json=data)
+            resp = await session.post(f"{API_URI}/users/bulk", json=data, headers=api_headers())
             resp.raise_for_status()
 
     @classmethod
@@ -132,14 +132,14 @@ class User:
             "telegram_id": f"user{telegram_id}",
         }
         async with AsyncSession() as session:
-            resp = await session.get(f"{API_URI}/users", params=params)
+            resp = await session.get(f"{API_URI}/users", params=params, headers=api_headers())
         _resp = _check_response(resp)
         return _UserAdapter.validate_python(_resp) if _resp is not None else None
 
     @staticmethod
     async def fetch_save_user(data: models.NewUser) -> models.User:
         async with AsyncSession() as session:
-            resp = await session.post(f"{API_URI}/users", json=data)
+            resp = await session.post(f"{API_URI}/users", json=data, headers=api_headers())
         return _UserAdapter.validate_python(_check_response(resp))
 
     def set_last_question(self, question_id: int, results: list[models.EmbeddingResult], response: str):
@@ -167,7 +167,7 @@ _AskQuestionAdapter = TypeAdapter(models.AskQuestion)
 async def ask_question(chat_id: int, question: str, model: str, api_key: str, user_id: int) -> models.AskQuestion:
     params = {"question": question, "model": model, "api_key": api_key, "user_id": user_id}
     async with AsyncSession() as session:
-        resp = await session.get(f"{API_URI}/chats/{chat_id}/ask", params=params)
+        resp = await session.get(f"{API_URI}/chats/{chat_id}/ask", params=params, headers=api_headers())
     return _AskQuestionAdapter.validate_python(_check_response(resp))
 
 
@@ -177,7 +177,7 @@ _StatusTypeAdapter = TypeAdapter(models.Status)
 async def give_feedback(question_id: int, feedback: str) -> models.Status:
     params = {"feedback": feedback}
     async with AsyncSession() as session:
-        resp = await session.patch(f"{API_URI}/questions/{question_id}", params=params)
+        resp = await session.patch(f"{API_URI}/questions/{question_id}", params=params, headers=api_headers())
     return _StatusTypeAdapter.validate_python(_check_response(resp))
 
 
@@ -218,7 +218,9 @@ async def upload_chat(url: str, user_id: int, filename: str, mime_type: str) -> 
     }
     async with AsyncSession() as session:
         data, total_content_length = await download_telegram_file(session, url)
-        headers = {"X-Content-Length": str(total_content_length)} if total_content_length is not None else None
+        headers = api_headers(
+            {"X-Content-Length": str(total_content_length)} if total_content_length is not None else None
+        )
 
         resp = await session.post(f"{API_URI}/chats/upload", data=data, headers=headers, params=params)
 
