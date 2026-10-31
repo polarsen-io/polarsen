@@ -39,7 +39,7 @@ async def _setup_db(
         logs.debug(f"Database {pg_database!r} does not exist, creating...")
         with set_pg_env(f"{_pg_url_no_db}/postgres"):
             logs.debug(f"Creating database {pg_database!r}...")
-            exec_cmd("createdb {}".format(pg_database))
+            exec_cmd(["createdb", pg_database])
 
     # Create extensions and tables
 
