@@ -1,5 +1,6 @@
 import asyncio
 from pathlib import Path
+from typing import cast
 import os
 
 import asyncpg
@@ -34,7 +35,9 @@ async def process_chat_worker(
     """
     worker_log = WorkerLoggerAdapter(logs, {"worker_id": worker_id, "worker_type": "UploadWorker"})
 
-    async with pool.acquire() as conn:
+    async with pool.acquire() as proxy:
+        # asyncpg 0.32 types acquire() as a PoolConnectionProxy
+        conn = cast(asyncpg.Connection, proxy)
         async with niquests.AsyncSession() as session:
             worker_log.info(f"Worker {worker_id}: starting listener")
             try:
@@ -101,7 +104,9 @@ async def process_chat_groups_worker(
     worker_log = WorkerLoggerAdapter(logs, {"worker_id": worker_id, "worker_type": "ChatGroupWorker"})
     _model_name = params.get("model_name")
     _source = get_source_from_model(_model_name)
-    async with pool.acquire() as conn:
+    async with pool.acquire() as proxy:
+        # asyncpg 0.32 types acquire() as a PoolConnectionProxy
+        conn = cast(asyncpg.Connection, proxy)
         async with niquests.AsyncSession(timeout=timeout) as session:
             worker_log.debug("Starting work loop")
             _processing_ids: set[int] | None = None
@@ -192,7 +197,9 @@ async def process_embeddings_worker(
     embedding_model: str = DEFAULT_EMBEDDING_MODEL,
 ):
     worker_log = WorkerLoggerAdapter(logs, {"worker_id": worker_id, "worker_type": "EmbeddingWorker"})
-    async with pool.acquire() as conn:
+    async with pool.acquire() as proxy:
+        # asyncpg 0.32 types acquire() as a PoolConnectionProxy
+        conn = cast(asyncpg.Connection, proxy)
         async with niquests.AsyncSession(timeout=timeout) as session:
             worker_log.info("Starting embedding work loop")
             _processing_ids: set[int] | None = None
