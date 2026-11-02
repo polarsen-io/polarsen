@@ -64,7 +64,7 @@ telegram = [
 ]
 
 bump = [
-    "commitizen>=4.8.3",
+    "commitizen>=4.19.3",
 ]
 
 cli = [
