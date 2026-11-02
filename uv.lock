@@ -222,16 +222,16 @@ wheels = [
 
 [[package]]
 name = "botocore"
-version = "1.40.50"
+version = "1.43.123"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "jmespath" },
     { name = "python-dateutil" },
     { name = "urllib3" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/5b/66/21d9ac0d37e5c4e55171466351cfc77404d8d664ccc17d4add6dba1dee99/botocore-1.40.50.tar.gz", hash = "sha256:1d3d5b5759c9cb30202cd5ad231ec8afb1abe5be0c088a1707195c2cbae0e742", size = 14417510, upload-time = "2025-10-10T20:12:24.656Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/e0/de/011fc2a47fb066c47064b122498d2fd21f55bc90ea514acbddc37ca0f8c1/botocore-1.43.123.tar.gz", hash = "sha256:80948cb9b1cdf1a1a25809089a42e3a1bc4af0258d198222db6e97dcc660dd0c", size = 16486269, upload-time = "2026-10-30T19:18:44.609Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/2a/af/4f817b49558785e969aa2852ae6c3bba8d372169ab5631a004288d2fac20/botocore-1.40.50-py3-none-any.whl", hash = "sha256:53126c153fae0670dc54f03d01c89b1af144acedb1020199b133dedb309e434d", size = 14087905, upload-time = "2025-10-10T20:12:21.872Z" },
+    { url = "https://files.pythonhosted.org/packages/db/96/4f2dffd304425c07160ab2c12cb13322d852fd956fe9d4386228c93f02ea/botocore-1.43.123-py3-none-any.whl", hash = "sha256:e30580f9c1282c321529238ff8ff75066096a2adbd0a293c8ae592c21d1733a3", size = 16185987, upload-time = "2026-10-30T19:18:39.794Z" },
 ]
 
 [[package]]
@@ -1202,13 +1202,13 @@ telegram = [
 [package.metadata.requires-dev]
 api = [
     { name = "bcrypt", specifier = ">=5.0.0" },
-    { name = "botocore", specifier = ">=1.40.45" },
+    { name = "botocore", specifier = ">=1.43.122" },
     { name = "fastapi", extras = ["standard"], specifier = ">=0.115.12" },
     { name = "sentry-sdk", extras = ["fastapi"], specifier = ">=2.32.0" },
 ]
 bump = [{ name = "commitizen", specifier = ">=4.8.3" }]
 cli = [
-    { name = "botocore", specifier = ">=1.40.45" },
+    { name = "botocore", specifier = ">=1.43.122" },
     { name = "sentry-sdk", specifier = ">=2.32.0" },
 ]
 default = [
@@ -1221,7 +1221,7 @@ default = [
 dev = [
     { name = "asyncpg", specifier = ">=0.30.0" },
     { name = "bcrypt", specifier = ">=5.0.0" },
-    { name = "botocore", specifier = ">=1.40.45" },
+    { name = "botocore", specifier = ">=1.43.122" },
     { name = "commitizen", specifier = ">=4.8.3" },
     { name = "datamodel-code-generator", specifier = ">=0.87.0" },
     { name = "faker", specifier = ">=37.6.0" },
