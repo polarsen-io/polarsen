@@ -52,7 +52,7 @@ llms = [
 api = [
     "fastapi[standard]>=0.115.12",
     "bcrypt>=5.0.0",
-    "botocore>=1.43.122",
+    "botocore>=1.43.123",
     "sentry-sdk[fastapi]>=2.32.0",
 ]
 
@@ -68,7 +68,7 @@ bump = [
 ]
 
 cli = [
-    "botocore>=1.43.122",
+    "botocore>=1.43.123",
     "sentry-sdk>=2.32.0",
 ]
 
