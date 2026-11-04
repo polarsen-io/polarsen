@@ -14,14 +14,14 @@ license = "FSL-1.1-ALv2"
 dev = [
     "pyright>=1.1.414",
     "pytest>=9.2.0",
-    "ruff>=0.12.1",
+    "ruff>=0.17.3",
     "datamodel-code-generator>=0.87.0",
     "httpx>=0.28.1",
     "psycopg>=3.2.9",
     "pytest-cov>=6.2.1",
     "minio>=7.2.20",
     "faker>=37.6.0",
-    "tracktolib>=0.57.0",
+    "tracktolib>=0.74.0",
     "pre-commit>=4.3.0",
     {include-group = "default"},
     {include-group = "llms"},
@@ -33,9 +33,9 @@ dev = [
 
 default = [
     "asyncpg>=0.32.0",
-    "piou>=0.21.0",
+    "piou>=0.38.2",
     "niquests>=3.15.2",
-    "tracktolib>=0.55.0",
+    "tracktolib>=0.74.0",
     "urllib3-future>=2.14.902",
 ]
 
@@ -50,7 +50,7 @@ llms = [
 ]
 
 api = [
-    "fastapi[standard]>=0.115.12",
+    "fastapi[standard]>=0.162.0",
     "bcrypt>=5.0.0",
     "botocore>=1.43.122",
     "sentry-sdk[fastapi]>=2.32.0",
