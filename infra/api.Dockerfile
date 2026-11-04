@@ -8,6 +8,7 @@ ENV UV_SYSTEM_PYTHON=1
 ENV UV_PROJECT_ENVIRONMENT=/usr/local
 
 ARG UV_PARAMS="--only-group default --only-group llms --only-group api"
+ARG PROJECT_MODE
 
 RUN apk add --no-cache \
     build-base \

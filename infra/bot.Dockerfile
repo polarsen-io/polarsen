@@ -8,6 +8,7 @@ ENV UV_SYSTEM_PYTHON=1
 ENV UV_PROJECT_ENVIRONMENT=/usr/local
 
 ARG UV_PARAMS="--only-group default --only-group telegram --only-group llms"
+ARG PROJECT_MODE
 
 # Install dependencies to system Python
 RUN --mount=type=cache,target=/root/.cache/uv,id=uv-${PROJECT_MODE} \

@@ -8,6 +8,7 @@ ENV UV_SYSTEM_PYTHON=1
 ENV UV_PROJECT_ENVIRONMENT=/usr/local
 
 ARG UV_PARAMS="--only-group default --only-group llms --only-group cli"
+ARG PROJECT_MODE
 
 RUN apk add --no-cache \
     build-base \
@@ -28,7 +29,7 @@ ADD pyproject.toml uv.lock ./
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --locked --no-dev ${UV_PARAMS}
 
-FROM rg.fr-par.scw.cloud/polarsen/psql:18-alpine as pg
+FROM rg.fr-par.scw.cloud/polarsen/psql:18-alpine AS pg
 FROM python:3.13-alpine AS main
 
 ARG version
