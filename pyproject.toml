@@ -17,12 +17,12 @@ dev = [
     "ruff>=0.17.3",
     "datamodel-code-generator>=0.87.0",
     "httpx>=0.28.1",
-    "psycopg>=3.2.9",
-    "pytest-cov>=6.2.1",
+    "psycopg>=3.3.6",
+    "pytest-cov>=7.1.0",
     "minio>=7.2.20",
-    "faker>=37.6.0",
+    "faker>=37.12.0",
     "tracktolib>=0.57.0",
-    "pre-commit>=4.3.0",
+    "pre-commit>=4.7.0",
     {include-group = "default"},
     {include-group = "llms"},
     {include-group = "api"},
@@ -34,42 +34,42 @@ dev = [
 default = [
     "asyncpg>=0.32.0",
     "piou>=0.21.0",
-    "niquests>=3.15.2",
+    "niquests>=3.21.2",
     "tracktolib>=0.55.0",
-    "urllib3-future>=2.14.902",
+    "urllib3-future>=2.25.905",
 ]
 
 
 llms = [
-    "google-genai>=1.50.1",
+    "google-genai>=1.75.0",
     # Needed by google-genai
     "requests>=2.34.2",
-    "mistralai>=1.9.11",
-    "openai>=2.8.0",
-    "pydantic>=2.11.2"
+    "mistralai>=1.12.4",
+    "openai>=2.54.0",
+    "pydantic>=2.14.2"
 ]
 
 api = [
     "fastapi[standard]>=0.115.12",
     "bcrypt>=5.0.0",
-    "botocore>=1.43.122",
-    "sentry-sdk[fastapi]>=2.32.0",
+    "botocore>=1.43.123",
+    "sentry-sdk[fastapi]>=2.73.0",
 ]
 
 telegram = [
-    "python-telegram-bot>=22.1",
-    "watchfiles>=1.0.5",
-    "sentry-sdk>=2.32.0",
-    "pydantic>=2.11.10",
+    "python-telegram-bot>=22.8",
+    "watchfiles>=1.3.0",
+    "sentry-sdk>=2.73.0",
+    "pydantic>=2.14.2",
 ]
 
 bump = [
-    "commitizen>=4.8.3",
+    "commitizen>=4.19.3",
 ]
 
 cli = [
-    "botocore>=1.43.122",
-    "sentry-sdk>=2.32.0",
+    "botocore>=1.43.123",
+    "sentry-sdk>=2.73.0",
 ]
 
 [tool.pyright]
