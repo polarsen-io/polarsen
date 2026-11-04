@@ -33,7 +33,7 @@ dev = [
 
 default = [
     "asyncpg>=0.32.0",
-    "piou>=0.21.0",
+    "piou>=0.38.2",
     "niquests>=3.21.2",
     "tracktolib>=0.74.0",
     "urllib3-future>=2.25.905",
