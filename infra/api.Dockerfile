@@ -30,7 +30,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --locked --no-dev ${UV_PARAMS}
 
 
-FROM python:3.13-alpine AS main
+FROM python:3.13-alpine@sha256:7984cf56ceaddebe4fefeb75d64000b9f45d8b77b11a09b24524da6cdc3af0c8 AS main
 
 ARG version
 ENV VERSION=$version
