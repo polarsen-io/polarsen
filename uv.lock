@@ -1164,7 +1164,7 @@ wheels = [
 
 [[package]]
 name = "polarsen"
-version = "0.1.1rc27"
+version = "0.1.1rc28"
 source = { virtual = "." }
 
 [package.dev-dependencies]
