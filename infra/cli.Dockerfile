@@ -29,8 +29,8 @@ ADD pyproject.toml uv.lock ./
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --locked --no-dev ${UV_PARAMS}
 
-FROM rg.fr-par.scw.cloud/polarsen/psql:18-alpine AS pg
-FROM python:3.13-alpine AS main
+FROM rg.fr-par.scw.cloud/polarsen/psql:18-alpine@sha256:0b9c841d409d4a2c088d666cf01dc5e1f3b92400c15d918726b834acb2f9ac4f AS pg
+FROM python:3.13-alpine@sha256:7984cf56ceaddebe4fefeb75d64000b9f45d8b77b11a09b24524da6cdc3af0c8 AS main
 
 ARG version
 ENV VERSION=$version

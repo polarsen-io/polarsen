@@ -11,7 +11,7 @@ volumes:
 services:
   db:
 #    image: pgvector/pgvector:pg16
-    image: rg.fr-par.scw.cloud/polarsen/postgres:18-trixie
+    image: rg.fr-par.scw.cloud/polarsen/postgres:18-trixie@sha256:0c3dd6ed70e76b70f3080043ef77f06e20df16ce2a2d123f3a30034a2bc4fe90
     restart: unless-stopped
     ports:
       - "127.0.0.1:5432:5432"
