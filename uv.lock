@@ -1405,7 +1405,7 @@ default = [
     { name = "asyncpg", specifier = ">=0.32.0" },
     { name = "niquests", specifier = ">=3.21.2" },
     { name = "piou", specifier = ">=0.21.0" },
-    { name = "tracktolib", specifier = ">=0.55.0" },
+    { name = "tracktolib", specifier = ">=0.74.0" },
     { name = "urllib3-future", specifier = ">=2.25.905" },
 ]
 dev = [
@@ -1434,8 +1434,7 @@ dev = [
     { name = "ruff", specifier = ">=0.17.3" },
     { name = "sentry-sdk", specifier = ">=2.73.0" },
     { name = "sentry-sdk", extras = ["fastapi"], specifier = ">=2.73.0" },
-    { name = "tracktolib", specifier = ">=0.55.0" },
-    { name = "tracktolib", specifier = ">=0.57.0" },
+    { name = "tracktolib", specifier = ">=0.74.0" },
     { name = "urllib3-future", specifier = ">=2.25.905" },
     { name = "watchfiles", specifier = ">=1.3.0" },
 ]
@@ -2086,11 +2085,11 @@ wheels = [
 
 [[package]]
 name = "tracktolib"
-version = "0.58.1"
+version = "1.4.0"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/8f/8a/70ee08caad0b68e28b570c22d526cd15bbb6860e52640d04ac753d6be053/tracktolib-0.58.1.tar.gz", hash = "sha256:29218f696ff65317dda29c427419dc0215b7e66614a156a32cd61b125ab16843", size = 19303, upload-time = "2025-09-29T13:24:48.738Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/62/33/517c6ad3810c3e2a903a638e28b930416a94a9c16bcffdd5164319c09cff/tracktolib-1.4.0.tar.gz", hash = "sha256:ba42d0280576659d26e80cac424f02f61e9fa287ec83c8597d1cdc472e3e6592", size = 41518, upload-time = "2026-10-30T06:41:25.363Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/83/66/6984c98568ca6a0412ed308bac1a8f383071b7982ab1ad1a4cfbcfaa8c1d/tracktolib-0.58.1-py3-none-any.whl", hash = "sha256:76e5ed1e51b8df0b083a1b70b547326dd11611bbcbd7340cf32539c9310866de", size = 22572, upload-time = "2025-09-29T13:24:47.396Z" },
+    { url = "https://files.pythonhosted.org/packages/62/a7/65a810d5b3bbe505b8a98cb298c813e4b5fcc65cebfd8e31592e85d708c1/tracktolib-1.4.0-py3-none-any.whl", hash = "sha256:33c72a9a858729f4c2786e6f56e209daffd90bcd013de2d56a811a15664daba6", size = 47656, upload-time = "2026-10-30T06:41:24.319Z" },
 ]
 
 [[package]]
