@@ -1252,7 +1252,7 @@ default = [
     { name = "asyncpg", specifier = ">=0.32.0" },
     { name = "niquests", specifier = ">=3.15.2" },
     { name = "piou", specifier = ">=0.21.0" },
-    { name = "tracktolib", specifier = ">=0.55.0" },
+    { name = "tracktolib", specifier = ">=0.74.0" },
     { name = "urllib3-future", specifier = ">=2.14.902" },
 ]
 dev = [
@@ -1282,8 +1282,7 @@ dev = [
     { name = "ruff", specifier = ">=0.17.3" },
     { name = "sentry-sdk", specifier = ">=2.32.0" },
     { name = "sentry-sdk", extras = ["fastapi"], specifier = ">=2.32.0" },
-    { name = "tracktolib", specifier = ">=0.55.0" },
-    { name = "tracktolib", specifier = ">=0.57.0" },
+    { name = "tracktolib", specifier = ">=0.74.0" },
     { name = "urllib3-future", specifier = ">=2.14.902" },
     { name = "watchfiles", specifier = ">=1.0.5" },
 ]
@@ -1331,14 +1330,14 @@ wheels = [
 
 [[package]]
 name = "psycopg"
-version = "3.2.10"
+version = "3.3.8"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "tzdata", marker = "sys_platform == 'win32'" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/a9/f1/0258a123c045afaf3c3b60c22ccff077bceeb24b8dc2c593270899353bd0/psycopg-3.2.10.tar.gz", hash = "sha256:0bce99269d16ed18401683a8569b2c5abd94f72f8364856d56c0389bcd50972a", size = 160380, upload-time = "2025-09-08T09:13:37.775Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/11/c8/3bd7e09770a5829eb26667df5e49f084d78bd106d5949ade9447288a8e18/psycopg-3.3.8.tar.gz", hash = "sha256:86c135a9a6f5e98404975c5787e620bf436a7807e088baebd1b20fa48d3b4b4f", size = 168902, upload-time = "2026-11-04T09:44:26.142Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/4a/90/422ffbbeeb9418c795dae2a768db860401446af0c6768bc061ce22325f58/psycopg-3.2.10-py3-none-any.whl", hash = "sha256:ab5caf09a9ec42e314a21f5216dbcceac528e0e05142e42eea83a3b28b320ac3", size = 206586, upload-time = "2025-09-08T09:07:50.121Z" },
+    { url = "https://files.pythonhosted.org/packages/7b/5c/50a0b0796ccb69b11934f7c5758051c08019bda2fafb417501109fffd569/psycopg-3.3.8-py3-none-any.whl", hash = "sha256:ca50af6072ba9ea6866f33021975230c2555d7bfdb9d8f94ca3af5c3d1bf2167", size = 216209, upload-time = "2026-11-04T09:37:35.491Z" },
 ]
 
 [[package]]
@@ -2040,11 +2039,11 @@ wheels = [
 
 [[package]]
 name = "tracktolib"
-version = "0.58.1"
+version = "1.4.0"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/8f/8a/70ee08caad0b68e28b570c22d526cd15bbb6860e52640d04ac753d6be053/tracktolib-0.58.1.tar.gz", hash = "sha256:29218f696ff65317dda29c427419dc0215b7e66614a156a32cd61b125ab16843", size = 19303, upload-time = "2025-09-29T13:24:48.738Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/62/33/517c6ad3810c3e2a903a638e28b930416a94a9c16bcffdd5164319c09cff/tracktolib-1.4.0.tar.gz", hash = "sha256:ba42d0280576659d26e80cac424f02f61e9fa287ec83c8597d1cdc472e3e6592", size = 41518, upload-time = "2026-10-30T06:41:25.363Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/83/66/6984c98568ca6a0412ed308bac1a8f383071b7982ab1ad1a4cfbcfaa8c1d/tracktolib-0.58.1-py3-none-any.whl", hash = "sha256:76e5ed1e51b8df0b083a1b70b547326dd11611bbcbd7340cf32539c9310866de", size = 22572, upload-time = "2025-09-29T13:24:47.396Z" },
+    { url = "https://files.pythonhosted.org/packages/62/a7/65a810d5b3bbe505b8a98cb298c813e4b5fcc65cebfd8e31592e85d708c1/tracktolib-1.4.0-py3-none-any.whl", hash = "sha256:33c72a9a858729f4c2786e6f56e209daffd90bcd013de2d56a811a15664daba6", size = 47656, upload-time = "2026-10-30T06:41:24.319Z" },
 ]
 
 [[package]]
