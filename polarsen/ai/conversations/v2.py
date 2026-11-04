@@ -9,7 +9,7 @@ from typing import TypedDict, Iterable, Unpack, NotRequired, Literal, cast, TYPE
 import asyncpg
 
 if TYPE_CHECKING:
-    from mistralai import models as mistral_models
+    from mistralai.client import models as mistral_models
     from openai.types import chat as openai_chat_types
     from niquests import AsyncSession
 
@@ -120,7 +120,7 @@ async def _fetch_mistral_segmentation(
     """
     Fetch conversation segmentation from the Mistral model.
     """
-    from mistralai import (
+    from mistralai.client.models import (
         ResponseFormatTypedDict,
         SystemMessageTypedDict,
         UserMessageTypedDict,
