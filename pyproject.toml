@@ -20,8 +20,8 @@ dev = [
     "psycopg>=3.3.6",
     "pytest-cov>=7.1.0",
     "minio>=7.2.20",
-    "faker>=37.12.0",
-    "tracktolib>=0.74.0",
+    "faker>=40.44.0",
+    "tracktolib>=1.4.0",
     "pre-commit>=4.7.0",
     {include-group = "default"},
     {include-group = "llms"},
@@ -35,17 +35,17 @@ default = [
     "asyncpg>=0.32.0",
     "piou>=0.38.2",
     "niquests>=3.21.2",
-    "tracktolib>=0.74.0",
+    "tracktolib>=1.4.0",
     "urllib3-future>=2.25.905",
 ]
 
 
 llms = [
-    "google-genai>=1.75.0",
+    "google-genai>=2.34.0",
     # Needed by google-genai
     "requests>=2.34.2",
-    "mistralai>=1.12.4",
-    "openai>=2.54.0",
+    "mistralai>=3.7.0",
+    "openai>=3.42.1",
     "pydantic>=2.14.2"
 ]
 
