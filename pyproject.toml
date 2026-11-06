@@ -3,7 +3,7 @@ name = "polarsen"
 version = "0.1.1-rc.34"
 description = ""
 readme = "README.md"
-requires-python = ">=3.13"
+requires-python = ">=3.15.2"
 authors = [{ name = "Julien Brayere", email = "julien.brayere@polarsen.io" }]
 license-files = ["LICENSE.md"]
 license = "FSL-1.1-ALv2"
