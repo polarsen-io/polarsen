@@ -7,7 +7,7 @@ import niquests
 from rich.progress import track
 
 from polarsen import env
-from polarsen.db import TelegramGroup, ChatUpload
+from polarsen.db import TelegramGroup, ChatUpload, DbChat, check_access_to_chat
 from polarsen.logs import logs
 from polarsen.s3_utils import s3_get_object
 
@@ -34,6 +34,18 @@ LEFT JOIN general.chat_types c ON c.id = cu.chat_type_id;
 async def fetch_pending_uploads(conn: asyncpg.Connection, limit: int = 10_000) -> list[asyncpg.Record]:
     records = await conn.fetch(PENDING_CHAT_UPLOADS_QUERY, limit)
     return records
+
+
+async def _lock_chat_ingest(conn: asyncpg.Connection, internal_code: str) -> None:
+    """Serialize ingestion of one chat across concurrent workers.
+
+    Two workers can both see no chat for the same internal_code, skip the access
+    check, then race on the insert. The winner creates the chat and the loser's
+    upload merges into it without any check. The transaction-scoped advisory
+    lock makes the second worker wait until the first commits, so it sees the
+    chat and runs the access check against it.
+    """
+    await conn.execute("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", internal_code)
 
 
 async def process_uploads(
@@ -77,10 +89,23 @@ async def process_uploads(
         match chat_source:
             case "telegram":
                 group = TelegramGroup.load(json.loads(file_data.decode("utf-8")), show_progress=show_progress)
-                chat_id = await group.save(conn=conn, created_by=uploaded_by)
+                async with conn.transaction():
+                    internal_code = str(group.group_id)
+                    await _lock_chat_ingest(conn, internal_code)
+                    existing_chat_id = (await DbChat.get_ids(conn, [internal_code])).get(internal_code)
+                    if existing_chat_id is not None and not await check_access_to_chat(
+                        conn, existing_chat_id, uploaded_by
+                    ):
+                        _logs.error(
+                            f"User {uploaded_by} does not have access to chat {existing_chat_id}; "
+                            f"rejecting upload {upload_id}."
+                        )
+                        await ChatUpload.mark_processed(conn, chat_id=existing_chat_id, upload_id=upload_id)
+                        continue
+                    chat_id = await group.save(conn=conn, created_by=uploaded_by)
+                    await ChatUpload.mark_processed(conn, chat_id=chat_id, upload_id=upload_id)
             case _:
                 raise ValueError(f"Unsupported chat source {chat_source!r}")
 
-        await ChatUpload.mark_processed(conn, chat_id=chat_id, upload_id=upload_id)
         chat_ids.append(chat_id)
     return chat_ids

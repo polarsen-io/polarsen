@@ -5,24 +5,8 @@ import asyncpg
 import bcrypt
 from tracktolib.pg import insert_returning, insert_many
 
+from polarsen.db.chat import check_access_to_chat as check_access_to_chat
 from polarsen.logs import logs
-
-
-async def check_access_to_chat(conn: asyncpg.Connection, chat_id: int, user_id: int) -> bool:
-    """
-    Check if the user has access to the chat.
-    """
-    result = await conn.fetchval(
-        """
-        SELECT EXISTS (SELECT 1
-                       FROM general.chat_members
-                       WHERE chat_id = $1
-                         AND user_id = $2)
-        """,
-        chat_id,
-        user_id,
-    )
-    return result is True
 
 
 def gen_pwd_hash(password: str, encoding: str = "utf-8") -> str:
