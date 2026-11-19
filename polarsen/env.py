@@ -24,6 +24,10 @@ GROK_API_KEY = os.environ.get("GROK_API_KEY")
 # Self-Hosted OpenAI
 SCALEWAY_API_KEY = os.environ.get("SCALEWAY_API_KEY")
 
+# Chat ingestion
+# Number of failed attempts before a chat upload is excluded from processing.
+MAX_INGESTION_RETRIES = int(os.getenv("MAX_INGESTION_RETRIES", "5"))
+
 # S3
 
 CHAT_UPLOADS_S3_BUCKET = os.getenv("CHAT_UPLOADS_S3_BUCKET")
