@@ -24,6 +24,16 @@ Polarsen makes your conversations searchable and useful.
 
 ## Quickstart
 
+### Configuration
+
+Before starting the services, copy the environment template:
+
+```bash
+cp infra/template.env infra/.env
+```
+
+Then edit `infra/.env` to fill in your configuration values.
+
 ### Start the services
 
 To start the services, simply run the following command:
