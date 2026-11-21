@@ -3,6 +3,7 @@ from __future__ import annotations
 import contextlib
 import datetime as dt
 import json
+import re
 import textwrap
 from dataclasses import dataclass, field
 from typing import Sequence, TYPE_CHECKING
@@ -34,6 +35,18 @@ The current date of the question is provided in the [DATE][/DATE] tags.
 """)
 
 
+_DELIMITER_RE = re.compile(r"\[(/?)(context|question|user|date|system)\]", re.IGNORECASE)
+
+
+def neutralize_delimiters(text: str) -> str:
+    """Escape brackets around prompt delimiters so untrusted text cannot open or close a block."""
+
+    def _escape(match: re.Match[str]) -> str:
+        return f"&#91;{match.group(1)}{match.group(2)}&#93;"
+
+    return _DELIMITER_RE.sub(_escape, text)
+
+
 def fmt_summaries(results: list[CloseEmbedding]) -> list[dict]:
     return [
         {
@@ -46,11 +59,11 @@ def fmt_summaries(results: list[CloseEmbedding]) -> list[dict]:
 
 
 def fmt_context_message(context: list[dict], user: str) -> str:
-    _cur_date = dt.datetime.now().date().isoformat()
+    context_json = neutralize_delimiters(json.dumps(context))
     message = f"""
-    [CONTEXT]{json.dumps(context)}[/CONTEXT]
+    [CONTEXT]{context_json}[/CONTEXT]
     [DATE]{dt.datetime.now().date().isoformat()}[/DATE]
-    [USER]{user}[/USER]
+    [USER]{neutralize_delimiters(user)}[/USER]
     """
     return textwrap.dedent(message).strip()
 
