@@ -24,7 +24,7 @@ services:
       - POSTGRES_PASSWORD=${PG_PASSWORD:-postgres}
       - POSTGRES_USER=${PG_USER:-postgres}
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${PG_USER:-postgres}"]
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U ${PG_USER:-postgres}"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -240,7 +240,8 @@ services:
       - PG_PASSWORD=${PG_PASSWORD:-postgres}
       - PG_DATABASE=polarsen_test
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     profiles:
       - test
 
