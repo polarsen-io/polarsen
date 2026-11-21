@@ -32,17 +32,12 @@ __all__ = (
 def get_s3_client():
     session = botocore.session.Session()
 
-    if not env.S3_ACCESS_KEY_ID:
-        raise ValueError("S3_ACCESS_KEY_ID is not set in the environment variables.")
-    if not env.S3_SECRET_ACCESS_KEY:
-        raise ValueError("S3_SECRET_ACCESS_KEY is not set in the environment variables.")
-
     s3_client = session.create_client(
         "s3",
         endpoint_url=env.S3_ENDPOINT,
         region_name=env.S3_REGION,
-        aws_secret_access_key=env.S3_SECRET_ACCESS_KEY,
-        aws_access_key_id=env.S3_ACCESS_KEY_ID,
+        aws_secret_access_key=env.get_s3_secret_access_key(),
+        aws_access_key_id=env.get_s3_access_key_id(),
     )
     yield s3_client
 

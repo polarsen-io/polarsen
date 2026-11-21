@@ -4,7 +4,7 @@ from urllib.parse import urlparse
 
 from piou import Option, Password
 
-from .env import PG_HOST, PG_PORT, PG_USER, PG_PASSWORD, PG_DATABASE, PG_DSN
+from .env import PG_DATABASE, PG_DSN, PG_HOST, PG_PORT, PG_USER, get_pg_password
 
 # Parse PG_DSN if set, to use as defaults for individual options
 _pg_dsn_parsed = urlparse(PG_DSN) if PG_DSN else None
@@ -12,7 +12,7 @@ _pg_dsn_parsed = urlparse(PG_DSN) if PG_DSN else None
 PgHost = Option(_pg_dsn_parsed.hostname or PG_HOST if _pg_dsn_parsed else PG_HOST, "--host", help="PG Host")
 PgPort = Option(_pg_dsn_parsed.port or PG_PORT if _pg_dsn_parsed else PG_PORT, "--port", help="PG Port")
 PgUser = Option(_pg_dsn_parsed.username or PG_USER if _pg_dsn_parsed else PG_USER, "--pg-user", help="PG User")
-PgPassword = Option(_pg_dsn_parsed.password or PG_PASSWORD if _pg_dsn_parsed else PG_PASSWORD, "-p", help="PG Password")
+PgPassword = Option(_pg_dsn_parsed.password if _pg_dsn_parsed else None, "-p", help="PG Password")
 PgDatabase = Option(
     _pg_dsn_parsed.path.lstrip("/") or PG_DATABASE if _pg_dsn_parsed else PG_DATABASE, "--db", help="PG Database"
 )
@@ -22,9 +22,10 @@ def get_pg_url(
     pg_host: str = PgHost,
     pg_port: int = PgPort,
     pg_user: str = PgUser,
-    pg_password: Password = PgPassword,
+    pg_password: Password | None = PgPassword,
     pg_database: str = PgDatabase,
 ) -> str:
+    pg_password = pg_password or Password(get_pg_password())
     return f"postgres://{pg_user}:{pg_password}@{pg_host}:{pg_port}/{pg_database}"
 
 
