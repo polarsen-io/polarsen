@@ -6,8 +6,8 @@ from typing import TypedDict, TYPE_CHECKING
 import niquests
 
 if TYPE_CHECKING:
-    from mistralai import ChatCompletionRequestTypedDict
-    from mistralai.models import AssistantMessage, UserMessage
+    from mistralai.client.models import ChatCompletionRequestTypedDict
+    from mistralai.client.models import AssistantMessage, UserMessage
 
 from .fetch import fetch_completion, UsageToken
 

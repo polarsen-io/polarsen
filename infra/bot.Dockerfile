@@ -1,6 +1,6 @@
-# syntax=docker/dockerfile:1.4
+# syntax=docker/dockerfile:1.28@sha256:bb22d9815c728170f72750f4e5b0d672e06176142e1d602c7e66c050100b7e5b
 # check=error=true
-FROM ghcr.io/astral-sh/uv:python3.13-alpine AS builder
+FROM ghcr.io/astral-sh/uv:python3.13-alpine@sha256:63b8fa4be2338728034164eb6c067a363fdbb3234fa79b64c83545317b7feec1 AS builder
 
 WORKDIR /app
 
@@ -8,6 +8,7 @@ ENV UV_SYSTEM_PYTHON=1
 ENV UV_PROJECT_ENVIRONMENT=/usr/local
 
 ARG UV_PARAMS="--only-group default --only-group telegram --only-group llms"
+ARG PROJECT_MODE
 
 # Install dependencies to system Python
 RUN --mount=type=cache,target=/root/.cache/uv,id=uv-${PROJECT_MODE} \
@@ -23,7 +24,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --locked --no-dev ${UV_PARAMS}
 
 
-FROM python:3.13-alpine AS main
+FROM python:3.13-alpine@sha256:7984cf56ceaddebe4fefeb75d64000b9f45d8b77b11a09b24524da6cdc3af0c8 AS main
 
 ARG version
 ENV VERSION=$version

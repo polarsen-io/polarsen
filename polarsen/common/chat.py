@@ -11,7 +11,7 @@ import asyncpg
 import niquests
 
 if TYPE_CHECKING:
-    import mistralai.models as mistral_models
+    import mistralai.client.models as mistral_models
     from google.genai import types as genai_types
     from openai.types import chat as openai_types
 
@@ -154,7 +154,7 @@ class MistralChatSession(ChatSession):
         self.messages += messages
         request = mistral_models.ChatCompletionRequestTypedDict(messages=self.messages, model=self.model_name)
         resp, token, _ = await mistral.fetch_completion(session, request)
-        self.messages.append(mistral_models.AssistantMessageTypedDict(content=resp))
+        self.messages.append(mistral_models.AssistantMessageTypedDict(role="assistant", content=resp))
         self.set_token(token)
         return resp
 

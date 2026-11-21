@@ -1,6 +1,6 @@
-# syntax=docker/dockerfile:1.4
+# syntax=docker/dockerfile:1.28@sha256:bb22d9815c728170f72750f4e5b0d672e06176142e1d602c7e66c050100b7e5b
 # check=error=true
-FROM ghcr.io/astral-sh/uv:python3.13-alpine AS builder
+FROM ghcr.io/astral-sh/uv:python3.13-alpine@sha256:63b8fa4be2338728034164eb6c067a363fdbb3234fa79b64c83545317b7feec1 AS builder
 
 WORKDIR /app
 
@@ -8,6 +8,7 @@ ENV UV_SYSTEM_PYTHON=1
 ENV UV_PROJECT_ENVIRONMENT=/usr/local
 
 ARG UV_PARAMS="--only-group default --only-group llms --only-group cli"
+ARG PROJECT_MODE
 
 RUN apk add --no-cache \
     build-base \
@@ -28,39 +29,30 @@ ADD pyproject.toml uv.lock ./
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --locked --no-dev ${UV_PARAMS}
 
-FROM --platform=linux/amd64 rg.fr-par.scw.cloud/polarsen/psql:18-alpine AS pg-amd64
-FROM alpine:3 AS pg-arm64
-FROM pg-${TARGETARCH:-amd64} AS pg
-
-FROM python:3.13-alpine AS main
+FROM rg.fr-par.scw.cloud/polarsen/psql:18-alpine@sha256:0b9c841d409d4a2c088d666cf01dc5e1f3b92400c15d918726b834acb2f9ac4f AS pg
+FROM python:3.13-alpine@sha256:7984cf56ceaddebe4fefeb75d64000b9f45d8b77b11a09b24524da6cdc3af0c8 AS main
 
 ARG version
 ENV VERSION=$version
 ARG PROJECT_MODE
 ENV PROJECT_MODE=$PROJECT_MODE
-ARG TARGETARCH
 
 RUN addgroup user && \
     adduser -s /bin/bash -D -G user user
 
-# Install runtime dependencies
-# On arm64 (Apple Silicon), postgresql18-client from apk is used since the custom pg image is amd64-only
+# Install runtime dependencies that psql needs
 RUN apk add --no-cache \
     libedit \
     krb5-libs \
-    openldap \
-    postgresql18-client
+    openldap
 
 COPY --from=builder /usr/local/lib/python3.13/site-packages/ /usr/local/lib/python3.13/site-packages/
 COPY --from=builder /usr/local/bin/ /usr/local/bin/
-# On amd64, override with binaries from the custom pg image
-RUN --mount=type=bind,from=pg,source=/,target=/pg \
-    if [ "$TARGETARCH" = "amd64" ] && [ -f /pg/usr/local/bin/psql ]; then \
-      cp /pg/usr/local/bin/psql /usr/local/bin/psql && \
-      cp /pg/usr/local/bin/dropdb /usr/local/bin/dropdb && \
-      cp /pg/usr/local/bin/createdb /usr/local/bin/createdb && \
-      cp /pg/usr/local/lib/libpq.* /usr/local/lib/; \
-    fi
+# PG client
+COPY --from=pg /usr/local/bin/psql /usr/local/bin/psql
+COPY --from=pg /usr/local/bin/dropdb /usr/local/bin/dropdb
+COPY --from=pg /usr/local/bin/createdb /usr/local/bin/createdb
+COPY --from=pg /usr/local/lib/libpq.* /usr/local/lib/
 
 ADD polarsen/ polarsen/
 ADD sql/ sql/

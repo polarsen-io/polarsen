@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Any
 import niquests
 
 if TYPE_CHECKING:
-    from mistralai.models import (
+    from mistralai.client.models import (
         AgentsCompletionRequestTypedDict,
         EmbeddingRequestTypedDict,
         ChatCompletionRequestTypedDict,
