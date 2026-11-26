@@ -4,7 +4,7 @@ from typing import Any
 import asyncpg
 from collections.abc import Mapping
 
-from fastapi import FastAPI, Depends, Query, Request
+from fastapi import APIRouter, FastAPI, Depends, Query, Request
 from fastapi.responses import JSONResponse
 from starlette import status
 
@@ -51,10 +51,13 @@ def health_check():
     return {"status": "ok"}
 
 
+# Every route on this router needs the shared token
+internal = APIRouter(dependencies=[Depends(require_internal_api_token)])
+
 USER_TAG = "user"
 
 
-@app.post("/users", tags=[USER_TAG], dependencies=[Depends(require_internal_api_token)])
+@internal.post("/users", tags=[USER_TAG])
 async def _create_user(user: NewUser, conn=Depends(get_conn)) -> User:
     """Create a new user."""
     async with conn.transaction():
@@ -72,7 +75,7 @@ async def _create_user(user: NewUser, conn=Depends(get_conn)) -> User:
     return data
 
 
-@app.post("/users/bulk", tags=[USER_TAG], dependencies=[Depends(require_internal_api_token)])
+@internal.post("/users/bulk", tags=[USER_TAG])
 async def _create_users(users: list[NewUser], conn=Depends(get_conn)) -> Status:
     """Create a new user."""
     async with conn.transaction():
@@ -89,7 +92,7 @@ async def _create_users(users: list[NewUser], conn=Depends(get_conn)) -> Status:
     return Status(status="ok", message=f"Created {len(users)} users successfully.")
 
 
-@app.get("/users", tags=[USER_TAG], dependencies=[Depends(require_internal_api_token)])
+@internal.get("/users", tags=[USER_TAG])
 async def _get_user(
     telegram_id: str | None = Query(None, description="Telegram user ID in the format 'user{telegram_id}'"),
     conn=Depends(get_conn),
@@ -105,7 +108,7 @@ async def _get_user(
 CHAT_TAG = "chat"
 
 
-@app.get("/chats/{chat_id}/ask", tags=[CHAT_TAG], dependencies=[Depends(require_internal_api_token)])
+@internal.get("/chats/{chat_id}/ask", tags=[CHAT_TAG])
 async def _ask_question(
     chat_id: int,
     api_key: str,
@@ -142,7 +145,7 @@ async def _ask_question(
     return AskQuestion(response=resp, results=results, question_id=question_id)
 
 
-@app.post("/chats/upload", tags=[CHAT_TAG], dependencies=[Depends(require_internal_api_token)])
+@internal.post("/chats/upload", tags=[CHAT_TAG])
 async def _upload_chat(
     request: Request,
     user_id: int,
@@ -235,7 +238,7 @@ async def _upload_chat(
     )
 
 
-@app.patch("/questions/{question_id}", tags=[CHAT_TAG], dependencies=[Depends(require_internal_api_token)])
+@internal.patch("/questions/{question_id}", tags=[CHAT_TAG])
 async def _update_question(question_id: int, feedback: str, conn=Depends(get_conn)) -> Status:
     """Update a question with feedback."""
     await QuestionDB.update_feedback(conn, question_id, feedback)
@@ -266,10 +269,13 @@ MODELS: list[AIModel] = [
 ]
 
 
-@app.get("/models", tags=[CHAT_TAG], dependencies=[Depends(require_internal_api_token)])
+@internal.get("/models", tags=[CHAT_TAG])
 async def _get_models() -> list[AIModel]:
     """Get a list of available AI models."""
     return MODELS
+
+
+app.include_router(internal)
 
 
 @app.exception_handler(APIException)

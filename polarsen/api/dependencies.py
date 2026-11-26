@@ -4,7 +4,8 @@ from contextlib import asynccontextmanager
 
 import asyncpg
 import niquests
-from fastapi import Header, HTTPException, status
+from fastapi import Depends, HTTPException, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from polarsen import env
 from polarsen.logs import logs
@@ -66,7 +67,10 @@ def get_s3_client():
         yield s3_client
 
 
-async def require_internal_api_token(authorization: str | None = Header(None)) -> None:
+_bearer = HTTPBearer(auto_error=False)
+
+
+async def require_internal_api_token(credentials: HTTPAuthorizationCredentials | None = Depends(_bearer)) -> None:
     """Reject requests without the shared bearer token."""
     try:
         expected_token = env.get_internal_api_token()
@@ -77,9 +81,9 @@ async def require_internal_api_token(authorization: str | None = Header(None)) -
             detail="Internal API token is not configured",
         ) from exc
 
-    scheme, _, token = (authorization or "").partition(" ")
-    if scheme.lower() != "bearer" or not hmac.compare_digest(token.encode(), expected_token.encode()):
+    if credentials is None or not hmac.compare_digest(credentials.credentials.encode(), expected_token.encode()):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Missing or invalid internal API token",
+            headers={"WWW-Authenticate": "Bearer"},
         )

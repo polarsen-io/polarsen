@@ -6,6 +6,7 @@ from piou import CommandGroup, Option
 from polarsen.logs import logs
 from . import bot
 from .env import TELEGRAM_BOT_TOKEN
+from polarsen.env import get_internal_api_token
 
 __all__ = ("bot_group",)
 
@@ -24,6 +25,7 @@ async def run_bot_command(
     import asyncio
     import signal
 
+    get_internal_api_token()  # fail at startup, not on the first user message
     bot_event = asyncio.Event()
     loop = asyncio.get_event_loop()
 

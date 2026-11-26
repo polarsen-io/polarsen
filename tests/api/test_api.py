@@ -1,4 +1,5 @@
 import json
+import re
 from http import HTTPStatus
 
 import pytest
@@ -12,45 +13,47 @@ FILE_1MB = generate_large_file(1 * 1024 * 1024)
 FILE_6MB = generate_large_file(6 * 1024 * 1024)
 
 
+PUBLIC_ROUTES = {"/version", "/health"}
+
+
+def _internal_routes():
+    from fastapi.routing import APIRoute
+
+    from polarsen.api.main import app
+
+    return [
+        pytest.param(method, re.sub(r"{\w+}", "1", route.path), id=f"{method} {route.path}")
+        for route in app.routes
+        if isinstance(route, APIRoute) and route.path not in PUBLIC_ROUTES
+        for method in sorted(route.methods)
+    ]
+
+
 class TestAuth:
-    @pytest.mark.parametrize(
-        "method,path",
-        [
-            pytest.param("POST", "/users", id="create-user"),
-            pytest.param("POST", "/users/bulk", id="create-users"),
-            pytest.param("GET", "/users", id="get-user"),
-            pytest.param("GET", "/chats/1/ask", id="ask-question"),
-            pytest.param("POST", "/chats/upload", id="upload-chat"),
-            pytest.param("PATCH", "/questions/1", id="update-question"),
-            pytest.param("GET", "/models", id="get-models"),
-        ],
-    )
+    @pytest.mark.parametrize("method,path", _internal_routes())
     def test_rejects_missing_token(self, anon_client, method, path):
         resp = anon_client.request(method, path)
         assert resp.status_code == HTTPStatus.UNAUTHORIZED
 
-    def test_rejects_wrong_token(self, client):
-        resp = client.get("/models", headers={"Authorization": "Bearer wrong-token"})
-        assert resp.status_code == HTTPStatus.UNAUTHORIZED
+    @pytest.mark.parametrize(
+        "headers,expected",
+        [
+            pytest.param({"Authorization": "Bearer wrong-token"}, HTTPStatus.UNAUTHORIZED, id="wrong-token"),
+            pytest.param({"Authorization": "Basic dXNlcjpwYXNz"}, HTTPStatus.UNAUTHORIZED, id="wrong-scheme"),
+            pytest.param({}, HTTPStatus.OK, id="valid-token"),
+        ],
+    )
+    def test_token(self, client, headers, expected):
+        assert client.get("/models", headers=headers).status_code == expected
 
     def test_reports_missing_server_token(self, anon_client, monkeypatch):
-        from polarsen.api import dependencies
-
-        def missing_token() -> str:
-            raise RuntimeError("INTERNAL_API_TOKEN environment variable must be set")
-
-        monkeypatch.setattr(dependencies.env, "get_internal_api_token", missing_token)
+        monkeypatch.delenv("INTERNAL_API_TOKEN")
         resp = anon_client.get("/models", headers={"Authorization": "Bearer anything"})
         assert resp.status_code == HTTPStatus.INTERNAL_SERVER_ERROR
 
-    def test_accepts_valid_token(self, client):
-        resp = client.get("/models")
-        assert resp.status_code == HTTPStatus.OK
-
-    @pytest.mark.parametrize("path", ["/version", "/health"])
+    @pytest.mark.parametrize("path", [pytest.param(p, id=p) for p in sorted(PUBLIC_ROUTES)])
     def test_public_routes_need_no_token(self, anon_client, path):
-        resp = anon_client.get(path)
-        assert resp.status_code == HTTPStatus.OK
+        assert anon_client.get(path).status_code == HTTPStatus.OK
 
 
 class TestUpload:
