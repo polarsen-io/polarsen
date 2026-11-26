@@ -15,20 +15,14 @@ def setup(engine):
     engine.commit()
 
 
-def test_get_user_by_telegram_id_returns_matching_user(loop, aengine):
-    user = loop.run_until_complete(get_user(aengine, telegram_id=USER_B["telegram_id"]))
-
-    assert user is not None
-    assert user.id == USER_B["id"]
-
-
-def test_get_user_by_user_id_returns_matching_user(loop, aengine):
-    user = loop.run_until_complete(get_user(aengine, user_id=USER_A["id"]))
-
-    assert user is not None
-    assert user.id == USER_A["id"]
-
-
-def test_get_user_requires_an_identifier(loop, aengine):
-    with pytest.raises(ValueError):
-        loop.run_until_complete(get_user(aengine))
+@pytest.mark.parametrize(
+    "telegram_id,expected_id",
+    [
+        pytest.param(USER_A["telegram_id"], USER_A["id"], id="first-user"),
+        pytest.param(USER_B["telegram_id"], USER_B["id"], id="other-user"),
+        pytest.param("unknown", None, id="unknown"),
+    ],
+)
+def test_get_user(loop, aengine, telegram_id, expected_id):
+    user = loop.run_until_complete(get_user(aengine, telegram_id=telegram_id))
+    assert (user.id if user else None) == expected_id

@@ -56,7 +56,7 @@ USER_TAG = "user"
 async def _create_user(user: NewUser, conn=Depends(get_conn)) -> User:
     """Create a new user."""
     async with conn.transaction():
-        user_id = await UserDB.upsert(
+        await UserDB.upsert(
             conn,
             telegram_id=user.telegram_id,
             first_name=user.first_name,
@@ -64,7 +64,7 @@ async def _create_user(user: NewUser, conn=Depends(get_conn)) -> User:
             meta=user.meta,
             api_keys=user.api_keys,
         )
-        data = await get_user(conn, user_id=user_id)
+        data = await get_user(conn, telegram_id=user.telegram_id)
         if data is None:
             raise ValueError(f"Failed to create user with telegram_id {user.telegram_id}")
     return data
