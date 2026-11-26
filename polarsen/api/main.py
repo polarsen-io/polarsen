@@ -89,15 +89,11 @@ async def _create_users(users: list[NewUser], conn=Depends(get_conn)) -> Status:
 
 @app.get("/users", tags=[USER_TAG])
 async def _get_user(
-    telegram_id: str | None = Query(None, description="Telegram user ID in the format 'user{telegram_id}'"),
+    telegram_id: str = Query(description="Telegram user ID in the format 'user{telegram_id}'"),
     conn=Depends(get_conn),
 ) -> User | None:
-    """Create a new user."""
-    if telegram_id is None:
-        raise
-
-    data = await get_user(conn, telegram_id=telegram_id)
-    return data
+    """Get a user by Telegram ID, or null when unknown."""
+    return await get_user(conn, telegram_id=telegram_id)
 
 
 CHAT_TAG = "chat"
