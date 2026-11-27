@@ -388,3 +388,20 @@ class ChatUpload(TableID):
             upload_id,
             chat_id,
         )
+
+    @staticmethod
+    async def mark_error(conn: asyncpg.Connection, upload_id: int) -> int:
+        """Record a failed ingestion attempt and return the new error count."""
+        error_count = await conn.fetchval(
+            """
+            UPDATE general.chat_uploads
+            SET error_count = error_count + 1,
+                error_at = NOW()
+            WHERE id = $1
+            RETURNING error_count
+            """,
+            upload_id,
+        )
+        if error_count is None:
+            raise ValueError(f"Chat upload {upload_id} not found")
+        return error_count
