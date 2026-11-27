@@ -23,6 +23,17 @@ def _insert_chat(engine: psycopg.Connection, chat_meta: dict | None = None):
     engine.commit()
 
 
+def _insert_single_chat(engine: psycopg.Connection) -> int:
+    user_data = gen_user(api_keys={"gemini": "1234"})
+    chat_data = gen_chat(created_by=user_data["id"])
+
+    with engine.cursor() as cur:
+        insert_many(cur, "general.users", [user_data])
+        insert_many(cur, "general.chats", [chat_data])
+    engine.commit()
+    return chat_data["id"]
+
+
 class SegmentationParams(NamedTuple):
     setup_fn: Callable[[psycopg.Connection], None] | None
     mock_fn: unittest.mock.AsyncMock
@@ -138,3 +149,77 @@ def test_segmentation_listener(loop, engine, monkeypatch, test_param):
         loop.run_until_complete(_test())
 
     test_param.check_fn(engine, test_param.mock_fn)
+
+
+def _run_listener_once(loop, *, expect_error: bool):
+    from polarsen.cli.listener import process_chat_groups_worker
+    from polarsen.pg import get_pool
+
+    async def _test():
+        async with get_pool(PG_URL) as pool:
+            await process_chat_groups_worker(
+                pool=pool,
+                worker_id=0,
+                params={"model_name": "gemini"},
+                sleep_no_data=0,
+                run_forever=False,
+                only_with_keys=False,
+            )
+
+    ctx = pytest.raises(Exception) if expect_error else nullcontext()
+    with ctx:
+        loop.run_until_complete(_test())
+
+
+def _set_retry_config(monkeypatch, *, max_retries: int, base_delay: float):
+    monkeypatch.setattr("polarsen.cli.listener.env.MAX_INGESTION_RETRIES", max_retries)
+    monkeypatch.setattr("polarsen.cli.listener.env.INGESTION_RETRY_BASE_DELAY", base_delay)
+    monkeypatch.setattr("polarsen.cli.listener.env.INGESTION_RETRY_MAX_DELAY", base_delay)
+
+
+def test_segmentation_stops_after_retry_budget(loop, engine, monkeypatch):
+    _insert_single_chat(engine)
+    mock = unittest.mock.AsyncMock(side_effect=Exception("boom"))
+    monkeypatch.setattr("polarsen.cli.listener.v2.run_group_messages", mock)
+    _set_retry_config(monkeypatch, max_retries=2, base_delay=0)
+
+    _run_listener_once(loop, expect_error=True)
+    _run_listener_once(loop, expect_error=True)
+    # The chat is now 'failed', so the listener no longer selects it.
+    _run_listener_once(loop, expect_error=False)
+    _run_listener_once(loop, expect_error=False)
+
+    chats = fetch_all(engine, "select meta from general.chats order by id")
+    assert mock.await_count == 2, "Segmentation should run exactly max_retries times"
+    assert chats[0]["meta"]["attempts"] == 2
+    assert chats[0]["meta"]["status"] == "failed"
+
+
+def test_segmentation_waits_for_retry_backoff(loop, engine, monkeypatch):
+    _insert_single_chat(engine)
+    mock = unittest.mock.AsyncMock(side_effect=Exception("boom"))
+    monkeypatch.setattr("polarsen.cli.listener.v2.run_group_messages", mock)
+    _set_retry_config(monkeypatch, max_retries=5, base_delay=3600)
+
+    _run_listener_once(loop, expect_error=True)
+    _run_listener_once(loop, expect_error=False)
+
+    chats = fetch_all(engine, "select meta from general.chats order by id")
+    assert mock.await_count == 1, "Backoff should defer the second attempt"
+    assert chats[0]["meta"]["attempts"] == 1
+    assert chats[0]["meta"]["status"] == "error"
+
+
+def test_segmentation_succeeds_on_retry(loop, engine, monkeypatch):
+    _insert_single_chat(engine)
+    mock = unittest.mock.AsyncMock(side_effect=[Exception("boom"), None])
+    monkeypatch.setattr("polarsen.cli.listener.v2.run_group_messages", mock)
+    _set_retry_config(monkeypatch, max_retries=5, base_delay=0)
+
+    _run_listener_once(loop, expect_error=True)
+    _run_listener_once(loop, expect_error=False)
+
+    chats = fetch_all(engine, "select meta from general.chats order by id")
+    assert mock.await_count == 2
+    assert chats[0]["meta"]["status"] == "done"
+    assert "attempts" not in chats[0]["meta"]
