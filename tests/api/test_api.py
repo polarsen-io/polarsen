@@ -144,6 +144,22 @@ class TestUsers:
             "uploads": [],
         }
 
+    @pytest.mark.usefixtures("add_user")
+    @pytest.mark.parametrize(
+        "params,expected_status,expect_user",
+        [
+            pytest.param(lambda u: {"telegram_id": u["telegram_id"]}, HTTPStatus.OK, True, id="known"),
+            pytest.param(lambda u: {"telegram_id": "user-unknown"}, HTTPStatus.OK, False, id="unknown"),
+            pytest.param(lambda u: {}, HTTPStatus.UNPROCESSABLE_ENTITY, False, id="missing"),
+        ],
+    )
+    def test_get_user_by_telegram_id(self, client, telegram_user, params, expected_status, expect_user):
+        resp = client.get("/users", params=params(telegram_user))
+        assert resp.status_code == expected_status, resp.text
+        if expected_status == HTTPStatus.OK:
+            body = resp.json()
+            assert (body["id"] if body else None) == (telegram_user["id"] if expect_user else None)
+
     @pytest.mark.usefixtures("add_user", "add_uploads")
     def test_get_users(self, client, telegram_user, telegram_uploads):
         resp = client.post("/users", json={"telegram_id": telegram_user["telegram_id"]})
