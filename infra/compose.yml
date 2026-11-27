@@ -21,7 +21,7 @@ services:
       '-c', 'hba_file=/etc/postgresql/pg_hba.conf'
     ]
     environment:
-      - POSTGRES_PASSWORD=${PG_PASSWORD:-postgres}
+      - POSTGRES_PASSWORD=${PG_PASSWORD:?PG_PASSWORD must be set in infra/.env}
       - POSTGRES_USER=${PG_USER:-postgres}
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U ${PG_USER:-postgres}"]
@@ -43,8 +43,8 @@ services:
       'server', '/data', '--console-address', ':9001'
     ]
     environment:
-      - MINIO_ROOT_USER=${MINIO_ROOT_USER:-minioadmin}
-      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD:-minioadmin}
+      - MINIO_ROOT_USER=${S3_ACCESS_KEY_ID:?S3_ACCESS_KEY_ID must be set in infra/.env}
+      - MINIO_ROOT_PASSWORD=${S3_SECRET_ACCESS_KEY:?S3_SECRET_ACCESS_KEY must be set in infra/.env}
     volumes:
       - s3-data:/data
 
@@ -70,8 +70,9 @@ services:
     env_file: .env
     environment:
       - PYTHONUNBUFFERED=1
-      - S3_ACCESS_KEY_ID=${S3_ACCESS_KEY_ID:-minioadmin}
-      - S3_SECRET_ACCESS_KEY=${S3_SECRET_ACCESS_KEY:-minioadmin}
+      - PG_HOST=db
+      - S3_ACCESS_KEY_ID=${S3_ACCESS_KEY_ID:?S3_ACCESS_KEY_ID must be set in infra/.env}
+      - S3_SECRET_ACCESS_KEY=${S3_SECRET_ACCESS_KEY:?S3_SECRET_ACCESS_KEY must be set in infra/.env}
       - S3_ENDPOINT=${S3_ENDPOINT:-http://s3:9000}
       - CHAT_UPLOADS_S3_BUCKET=${CHAT_UPLOADS_S3_BUCKET:-chat-uploads}
     command: [ "start", "-vv" ]
@@ -131,11 +132,13 @@ services:
     restart: unless-stopped
     command: [ "-vv", "chat", "listen-uploads" ]
     environment:
-      - S3_ACCESS_KEY_ID=${S3_ACCESS_KEY_ID:-minioadmin}
-      - S3_SECRET_ACCESS_KEY=${S3_SECRET_ACCESS_KEY:-minioadmin}
+      - S3_ACCESS_KEY_ID=${S3_ACCESS_KEY_ID:?S3_ACCESS_KEY_ID must be set in infra/.env}
+      - S3_SECRET_ACCESS_KEY=${S3_SECRET_ACCESS_KEY:?S3_SECRET_ACCESS_KEY must be set in infra/.env}
       - S3_ENDPOINT=${S3_ENDPOINT:-http://s3:9000}
       - NB_WORKERS=${NB_WORKERS:-2}
       - PG_HOST=db
+      - PG_USER=${PG_USER:-postgres}
+      - PG_PASSWORD=${PG_PASSWORD:?PG_PASSWORD must be set in infra/.env}
       - CHAT_UPLOADS_S3_BUCKET=${CHAT_UPLOADS_S3_BUCKET:-chat-uploads}
       - SLEEP_NO_DATA=${SLEEP_NO_DATA:-60}
     depends_on:
@@ -166,6 +169,8 @@ services:
     environment:
       - NB_WORKERS=${NB_WORKERS:-2}
       - PG_HOST=db
+      - PG_USER=${PG_USER:-postgres}
+      - PG_PASSWORD=${PG_PASSWORD:?PG_PASSWORD must be set in infra/.env}
       - SLEEP_NO_DATA=${SLEEP_NO_DATA:-60}
     depends_on:
       db:
@@ -189,9 +194,12 @@ services:
       args:
         PROJECT_MODE: "cli"
     environment:
-      - S3_ACCESS_KEY_ID=${S3_ACCESS_KEY_ID:-minioadmin}
-      - S3_SECRET_ACCESS_KEY=${S3_SECRET_ACCESS_KEY:-minioadmin}
+      - S3_ACCESS_KEY_ID=${S3_ACCESS_KEY_ID:?S3_ACCESS_KEY_ID must be set in infra/.env}
+      - S3_SECRET_ACCESS_KEY=${S3_SECRET_ACCESS_KEY:?S3_SECRET_ACCESS_KEY must be set in infra/.env}
       - S3_ENDPOINT=${S3_ENDPOINT:-http://s3:9000}
+      - PG_HOST=db
+      - PG_USER=${PG_USER:-postgres}
+      - PG_PASSWORD=${PG_PASSWORD:?PG_PASSWORD must be set in infra/.env}
     depends_on:
       - db
       - s3
@@ -208,7 +216,7 @@ services:
     environment:
       - PG_HOST=db
       - PG_USER=${PG_USER:-postgres}
-      - PG_PASSWORD=${PG_PASSWORD:-postgres}
+      - PG_PASSWORD=${PG_PASSWORD:?PG_PASSWORD must be set in infra/.env}
     depends_on:
       db:
         condition: service_healthy
@@ -217,8 +225,8 @@ services:
     image: minio/mc
     restart: no
     environment:
-      - MINIO_USER=${MINIO_USER:-minioadmin}
-      - MINIO_PASSWORD=${MINIO_PASSWORD:-minioadmin}
+      - MINIO_ROOT_USER=${S3_ACCESS_KEY_ID:?S3_ACCESS_KEY_ID must be set in infra/.env}
+      - MINIO_ROOT_PASSWORD=${S3_SECRET_ACCESS_KEY:?S3_SECRET_ACCESS_KEY must be set in infra/.env}
       - BUCKETS=chat-uploads,
     volumes:
       - ./static/init-s3.sh:/init-s3.sh:ro
@@ -237,7 +245,7 @@ services:
     environment:
       - PG_HOST=db
       - PG_USER=${PG_USER:-postgres}
-      - PG_PASSWORD=${PG_PASSWORD:-postgres}
+      - PG_PASSWORD=${PG_PASSWORD:?PG_PASSWORD must be set in infra/.env}
       - PG_DATABASE=polarsen_test
     depends_on:
       db:
@@ -261,10 +269,10 @@ services:
       - PG_DATABASE=polarsen_test
       - PG_HOST=db
       - PG_USER=${PG_USER:-postgres}
-      - PG_PASSWORD=${PG_PASSWORD:-postgres}
+      - PG_PASSWORD=${PG_PASSWORD:?PG_PASSWORD must be set in infra/.env}
       - S3_ENDPOINT=http://s3:9000
-      - S3_ACCESS_KEY_ID=minioadmin
-      - S3_SECRET_ACCESS_KEY=minioadmin
+      - S3_ACCESS_KEY_ID=${S3_ACCESS_KEY_ID:?S3_ACCESS_KEY_ID must be set in infra/.env}
+      - S3_SECRET_ACCESS_KEY=${S3_SECRET_ACCESS_KEY:?S3_SECRET_ACCESS_KEY must be set in infra/.env}
       - CHAT_UPLOADS_S3_BUCKET=uploads-test
     depends_on:
       - db
