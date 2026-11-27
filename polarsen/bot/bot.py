@@ -26,7 +26,7 @@ from telegram.ext import (
 
 from polarsen.logs import logs
 from .data import User, UserState, ask_question, give_feedback, upload_chat
-from .env import API_URI
+from .env import API_URI, api_headers
 from .intl import TranslateFn
 from .models import Chat, ChatUpload
 from .models import EmbeddingResult
@@ -410,7 +410,7 @@ async def _select_chat(user: User):
 
 async def _select_ai(user: User):
     async with AsyncSession() as session:
-        resp = await session.get(f"{API_URI}/models")
+        resp = await session.get(f"{API_URI}/models", headers=api_headers())
         resp.raise_for_status()
     models = resp.json()
 

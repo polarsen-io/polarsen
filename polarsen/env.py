@@ -2,6 +2,15 @@ import os
 from pathlib import Path
 
 _cur_dir = Path(__file__).parent
+
+
+def get_internal_api_token() -> str:
+    """Shared API/bot bearer token; read lazily so CLI and DB tooling import this module without it."""
+    if token := os.getenv("INTERNAL_API_TOKEN"):
+        return token
+    raise RuntimeError("INTERNAL_API_TOKEN environment variable must be set")
+
+
 # Postgres
 
 PG_HOST = os.getenv("PG_HOST", "localhost")
